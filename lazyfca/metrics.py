@@ -1,0 +1,194 @@
+from __future__ import annotations
+
+import dataclasses
+import typing
+
+if typing.TYPE_CHECKING:
+    from lazyfca.classifier import Classifier
+
+from lazyfca.calculators import contingency_complex
+from lazyfca.calculators import matthews_correlation
+from lazyfca.calculators import information_gain
+from lazyfca.calculators import gini_gain
+from lazyfca.calculators import similarity
+from lazyfca.calculators import simplicity_prior
+from lazyfca.calculators import contingency_expected
+from lazyfca.calculators import stability
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class Metadata:
+    name: str
+    attr: str
+    lazy_calculator: typing.Callable[[LazyMetrics], None]
+    is_minimized: bool = False
+
+
+METADATA = [
+    Metadata(name="True positive", attr="tp", lazy_calculator=None),
+    Metadata(name="False positive", attr="fp", lazy_calculator=None, is_minimized=True),
+    Metadata(name="True negative", attr="tn", lazy_calculator=None),
+    Metadata(name="False negative", attr="fn", lazy_calculator=None, is_minimized=True),
+    Metadata(name="Supporters to opposers ratio", attr="supporter_opposer_ratio", lazy_calculator=contingency_complex),
+    Metadata(name="Support", attr="support", lazy_calculator=contingency_complex),
+    Metadata(name="Error rate", attr="error_rate", lazy_calculator=contingency_complex, is_minimized=True),
+    Metadata(name="Precision", attr="precision", lazy_calculator=contingency_complex),
+    Metadata(name="Precision log TP", attr="precision_log_tp", lazy_calculator=contingency_complex),
+    Metadata(name="Precision sqrt TP", attr="precision_sqrt_tp", lazy_calculator=contingency_complex),
+    Metadata(name="Lift", attr="lift", lazy_calculator=contingency_complex),
+    Metadata(name="WRAcc", attr="wracc", lazy_calculator=contingency_complex),
+    Metadata(name="Balanced precision proxy", attr="balanced_precision_proxy", lazy_calculator=contingency_complex),
+    Metadata(name="Youden's J", attr="youdens_j", lazy_calculator=contingency_complex),
+    Metadata(name="Matthews correlation", attr="matthews_correlation", lazy_calculator=matthews_correlation),
+    Metadata(name="Information gain", attr="information_gain", lazy_calculator=information_gain),
+    Metadata(name="Gini gain", attr="gini_gain", lazy_calculator=gini_gain),
+    Metadata(name="Log odds ratio", attr="log_odds_ratio", lazy_calculator=contingency_complex),
+    Metadata(name="Log odds ratio log TP", attr="log_odds_ratio_log_tp", lazy_calculator=contingency_complex),
+    Metadata(name="Chi squared", attr="chi_squared", lazy_calculator=contingency_expected),
+    Metadata(name="G-test", attr="g_test", lazy_calculator=contingency_expected),
+    Metadata(name="Interval tightness", attr="interval_tightness", lazy_calculator=similarity),
+    Metadata(name="Description volume", attr="description_volume", lazy_calculator=similarity, is_minimized=True),
+    Metadata(name="Simplicity prior", attr="simplicity_prior", lazy_calculator=simplicity_prior),
+    Metadata(name="Query binary similarity", attr="query_binary_similarity", lazy_calculator=similarity),
+    Metadata(name="Query numeric similarity", attr="query_numeric_similarity", lazy_calculator=similarity),
+    Metadata(name="Query similarity", attr="query_similarity", lazy_calculator=similarity),
+    Metadata(name="Query weighted precision", attr="query_weighted_precision", lazy_calculator=similarity),
+    Metadata(name="Query weighted precision log TP", attr="query_weighted_precision_log_tp", lazy_calculator=similarity),
+    Metadata(name="Query weighted precision sqrt TP", attr="query_weighted_precision_sqrt_tp", lazy_calculator=similarity),
+    Metadata(name="Query weighted log odds ratio", attr="query_weighted_log_odds_ratio", lazy_calculator=similarity),
+    Metadata(
+        name="Query weighted log odds ratio log TP",
+        attr="query_weighted_log_odds_ratio_log_tp",
+        lazy_calculator=similarity,
+    ),
+    Metadata(name="Query weighted WRAcc", attr="query_weighted_wracc", lazy_calculator=similarity),
+    Metadata(name="Stability", attr="stability", lazy_calculator=stability),
+    Metadata(name="Robustness", attr="robustness", lazy_calculator=stability),
+    Metadata(name="Delta stability", attr="delta_stability", lazy_calculator=stability),
+]
+
+MINIMZED_FIELDS = frozenset([metadata.attr for metadata in METADATA if metadata.is_minimized])
+METADATA_DICT: dict[str, Metadata] = {m.attr: m for m in METADATA}
+
+
+@dataclasses.dataclass(slots=True)
+class Metrics:
+    tp: typing.Optional[int] = None
+    fp: typing.Optional[int] = None
+    tn: typing.Optional[int] = None
+    fn: typing.Optional[int] = None
+    supporters_covered: typing.Optional[int] = None
+    opposers_covered: typing.Optional[int] = None
+    supporter_opposer_ratio: typing.Optional[float] = None
+
+    support: typing.Optional[float] = None
+    error_rate: typing.Optional[float] = None
+    precision: typing.Optional[float] = None
+    precision_log_tp: typing.Optional[float] = None
+    precision_sqrt_tp: typing.Optional[float] = None
+    lift: typing.Optional[float] = None
+    wracc: typing.Optional[float] = None
+    balanced_precision_proxy: typing.Optional[float] = None
+    youdens_j: typing.Optional[float] = None
+    matthews_correlation: typing.Optional[float] = None
+    information_gain: typing.Optional[float] = None
+    gini_gain: typing.Optional[float] = None
+    log_odds_ratio: typing.Optional[float] = None
+    log_odds_ratio_log_tp: typing.Optional[float] = None
+    chi_squared: typing.Optional[float] = None
+    g_test: typing.Optional[float] = None
+    interval_tightness: typing.Optional[float] = None
+    description_volume: typing.Optional[float] = None
+    simplicity_prior: typing.Optional[float] = None
+    query_binary_similarity: typing.Optional[float] = None
+    query_numeric_similarity: typing.Optional[float] = None
+    query_similarity: typing.Optional[float] = None
+    query_weighted_precision: typing.Optional[float] = None
+    query_weighted_precision_log_tp: typing.Optional[float] = None
+    query_weighted_precision_sqrt_tp: typing.Optional[float] = None
+    query_weighted_log_odds_ratio: typing.Optional[float] = None
+    query_weighted_log_odds_ratio_log_tp: typing.Optional[float] = None
+    query_weighted_wracc: typing.Optional[float] = None
+    stability: typing.Optional[float] = None
+    robustness: typing.Optional[float] = None
+    delta_stability: typing.Optional[float] = None
+
+    def get_metric(self, metric: str):
+        return getattr(self, metric, None)
+
+    def to_dict(self):
+        return {metadata.name: self.get_metric(metadata.attr) for metadata in METADATA}
+
+    def score_for_ranking(self, field: str) -> float:
+        value = self.get_metric(field)
+        return -value if field in MINIMZED_FIELDS else value
+
+    @staticmethod
+    def from_dict(dictionary: dict) -> Metrics:
+        result = Metrics()
+        for metadata in METADATA:
+            if metadata.name in dictionary:
+                setattr(result, metadata.attr, dictionary[metadata.name])
+            if metadata.attr in dictionary:
+                setattr(result, metadata.attr, dictionary[metadata.attr])
+        return result
+
+    def __repr__(self) -> str:
+        active = [(m.name, getattr(self, m.attr)) for m in METADATA if getattr(self, m.attr) is not None]
+        lines = ["Metrics"]
+        lines.append("=" * 46)
+        if active:
+            col = max(len(name) for name, _ in active)
+            for name, value in active:
+                fmt = f"{value:.4f}" if isinstance(value, float) else str(value)
+                minimized = next(m for m in METADATA if m.name == name).is_minimized
+                tag = " (↓)" if minimized else ""
+                lines.append(f"  {name:<{col}}  {fmt}{tag}")
+        else:
+            lines.append("  (no thresholds / values set)")
+        lines.append("=" * 46)
+        return "\n".join(lines)
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+    def is_better_than(self, other: Metrics) -> bool:
+        for metadata in METADATA:
+            # If value is not set, consider it as the worst possible value
+            other_value = other.get_metric(metadata.attr)
+            if other_value is None:
+                continue
+
+            self_value = self.get_metric(metadata.attr)
+            if self_value is None:
+                return False
+
+            if metadata.is_minimized:
+                if self_value > other_value:
+                    return False
+            else:
+                if self_value < other_value:
+                    return False
+        return True
+
+
+class LazyMetrics(Metrics):
+    __slots__ = "classifier"
+
+    def __init__(self, classifier: Classifier):
+        super().__init__()
+        self.classifier = classifier
+
+    def __getattribute__(self, metric: str):
+        if metric in METADATA_DICT:
+            raw = object.__getattribute__(self, metric)
+            if raw is None:
+                lazy_calculator = METADATA_DICT[metric].lazy_calculator
+                if lazy_calculator is not None:
+                    lazy_calculator(self)
+                    raw = object.__getattribute__(self, metric)
+            return raw
+        return object.__getattribute__(self, metric)
+
+    def get_metric(self, metric: str):
+        return getattr(self, metric, None)

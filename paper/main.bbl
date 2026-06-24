@@ -1,0 +1,223 @@
+\begin{thebibliography}{10}
+
+\bibitem{angelino2018learning}
+Elaine Angelino, Nicholas Larus-Stone, Daniel Alabi, Margo Seltzer, and Cynthia
+  Rudin.
+\newblock Learning certifiably optimal rule lists for categorical data.
+\newblock {\em Journal of Machine Learning Research}, 18(234):1--78, 2018.
+
+\bibitem{atzmueller2005exploiting}
+Martin Atzmueller, Frank Puppe, and Hans-Peter Buscher.
+\newblock Exploiting background knowledge for knowledge-intensive subgroup
+  discovery.
+\newblock In {\em IJCAI}, volume~5, pages 647--652, 2005.
+
+\bibitem{baixeries2014characterization}
+Jaume Baixeries, Mehdi Kaytoue, and Amedeo Napoli.
+\newblock Characterization of database dependencies with fca and pattern
+  structures.
+\newblock In {\em International Conference on Analysis of Images, Social
+  Networks and Texts}, pages 3--14. Springer, 2014.
+
+\bibitem{baralis2008lazy}
+Elena Baralis, Silvia Chiusano, and Paolo Garza.
+\newblock A lazy approach to associative classification.
+\newblock {\em IEEE Transactions on Knowledge and Data Engineering},
+  20(2):156--171, 2008.
+
+\bibitem{belfodil2020pattern}
+Aimene Belfodil, Sergei~O Kuznetsov, and Mehdi Kaytoue.
+\newblock On pattern setups and pattern multistructures.
+\newblock {\em International Journal of General Systems}, 49(8):785--818, 2020.
+
+\bibitem{bien2011prototype}
+Jacob Bien and Robert Tibshirani.
+\newblock Prototype selection for interpretable classification.
+\newblock 2011.
+
+\bibitem{buzmakov2016mining}
+Aleksey Buzmakov, Elias Egho, Nicolas Jay, Sergei~O Kuznetsov, Amedeo Napoli,
+  and Chedy Ra{\"\i}ssi.
+\newblock On mining complex sequential data by means of fca and pattern
+  structures.
+\newblock {\em International Journal of General Systems}, 45(2):135--159, 2016.
+
+\bibitem{buzmakov2015revisiting}
+Aleksey Buzmakov, Sergei~O Kuznetsov, and Amedeo Napoli.
+\newblock Revisiting pattern structure projections.
+\newblock In {\em International Conference on Formal Concept Analysis}, pages
+  200--215. Springer, 2015.
+
+\bibitem{carpineto2004concept}
+Claudio Carpineto and Giovanni Romano.
+\newblock {\em Concept data analysis: Theory and applications}.
+\newblock John Wiley \& Sons, 2004.
+
+\bibitem{chen2019looks}
+Chaofan Chen, Oscar Li, Daniel Tao, Alina Barnett, Cynthia Rudin, and
+  Jonathan~K Su.
+\newblock This looks like that: deep learning for interpretable image
+  recognition.
+\newblock {\em Advances in neural information processing systems}, 32, 2019.
+
+\bibitem{ganter2001pattern}
+Bernhard Ganter and Sergei~O Kuznetsov.
+\newblock Pattern structures and their projections.
+\newblock In {\em International conference on conceptual structures}, pages
+  129--142. Springer, 2001.
+
+\bibitem{ganter1999formal}
+Bernhard Ganter, Rudolf Wille, and Rudolf Wille.
+\newblock {\em Formal concept analysis}, volume 150.
+\newblock Springer, 1999.
+
+\bibitem{ghosh2022efficient}
+Bishwamittra Ghosh, Dmitry Malioutov, and Kuldeep~S Meel.
+\newblock Efficient learning of interpretable classification rules.
+\newblock {\em Journal of Artificial Intelligence Research}, 74:1823--1863,
+  2022.
+
+\bibitem{ignatov2014introduction}
+Dmitry~I Ignatov.
+\newblock Introduction to formal concept analysis and its applications in
+  information retrieval and related fields.
+\newblock In {\em Russian Summer School in Information Retrieval}, pages
+  42--141. Springer, 2014.
+
+\bibitem{kaytoue2015pattern}
+Mehdi Kaytoue, Victor Codocedo, Aleksey Buzmakov, Jaume Baixeries, Sergei~O
+  Kuznetsov, and Amedeo Napoli.
+\newblock Pattern structures and concept lattices for data mining and knowledge
+  processing.
+\newblock In {\em Joint European Conference on Machine Learning and Knowledge
+  Discovery in Databases}, pages 227--231. Springer, 2015.
+
+\bibitem{article}
+Mehdi Kaytoue, Sergei Kuznetsov, and Amedeo Napoli.
+\newblock Revisiting numerical pattern mining with formal concept analysis.
+\newblock {\em IJCAI International Joint Conference on Artificial
+  Intelligence}, 11 2011.
+
+\bibitem{kotters2020conjunctive}
+Jens K{\"o}tters and Peter~W Eklund.
+\newblock Conjunctive query pattern structures: a relational database model for
+  formal concept analysis.
+\newblock {\em Discrete Applied Mathematics}, 273:144--171, 2020.
+
+\bibitem{kuznetsov2009pattern}
+Sergei~O Kuznetsov.
+\newblock Pattern structures for analyzing complex data.
+\newblock In {\em International Workshop on Rough Sets, Fuzzy Sets, Data
+  Mining, and Granular-Soft Computing}, pages 33--44. Springer, 2009.
+
+\bibitem{kuznetsov2013fitting}
+Sergei~O Kuznetsov.
+\newblock Fitting pattern structures to knowledge discovery in big data.
+\newblock In {\em International conference on formal concept analysis}, pages
+  254--266. Springer, 2013.
+
+\bibitem{kuznetsov2009concept}
+Sergei~O Kuznetsov and Dmitry~I Ignatov.
+\newblock Concept stability for constructing taxonomies of web-site users.
+\newblock {\em arXiv preprint arXiv:0905.1424}, 2009.
+
+\bibitem{kwuida2020interpretability}
+L{\'e}onard Kwuida and Dmitry~I Ignatov.
+\newblock On interpretability and similarity in concept-based machine learning.
+\newblock In {\em International Conference on Analysis of Images, Social
+  Networks and Texts}, pages 28--54. Springer, 2020.
+
+\bibitem{lakkaraju2017interpretable}
+Himabindu Lakkaraju, Ece Kamar, Rich Caruana, and Jure Leskovec.
+\newblock Interpretable \& explorable approximations of black box models.
+\newblock {\em arXiv preprint arXiv:1707.01154}, 2017.
+
+\bibitem{letham2015interpretable}
+Benjamin Letham, Cynthia Rudin, Tyler~H McCormick, and David Madigan.
+\newblock Interpretable classifiers using rules and bayesian analysis: Building
+  a better stroke prediction model.
+\newblock 2015.
+
+\bibitem{li2001cmar}
+Wenmin Li, Jiawei Han, and Jian Pei.
+\newblock Cmar: Accurate and efficient classification based on multiple
+  class-association rules.
+\newblock In {\em Proceedings 2001 IEEE international conference on data
+  mining}, pages 369--376. IEEE, 2001.
+
+\bibitem{liu1998integrating}
+Bing Liu, Wynne Hsu, and Yiming Ma.
+\newblock Integrating classification and association rule mining.
+\newblock In {\em Proceedings of the fourth international conference on
+  knowledge discovery and data mining}, pages 80--86, 1998.
+
+\bibitem{masyutin2015lazy}
+Alexey Masyutin, Yury Kashnitsky, and SO~Kuznetsov.
+\newblock Lazy classification with interval pattern structures: Application to
+  credit scoring.
+\newblock In {\em Workshop Notes}, page~43, 2015.
+
+\bibitem{ribeiro2016should}
+Marco~Tulio Ribeiro, Sameer Singh, and Carlos Guestrin.
+\newblock " why should i trust you?" explaining the predictions of any
+  classifier.
+\newblock In {\em Proceedings of the 22nd ACM SIGKDD international conference
+  on knowledge discovery and data mining}, pages 1135--1144, 2016.
+
+\bibitem{thabtah2007review}
+Fadi Thabtah.
+\newblock A review of associative classification mining.
+\newblock {\em The Knowledge Engineering Review}, 22(1):37--65, 2007.
+
+\bibitem{todorovski2000predictive}
+Ljup{\v{c}}o Todorovski, Peter Flach, and Nada Lavra{\v{c}}.
+\newblock Predictive performance of weighted relative accuracy.
+\newblock In {\em European conference on principles of data mining and
+  knowledge discovery}, pages 255--264. Springer, 2000.
+
+\bibitem{tomat2023interval}
+Alan Tomat.
+\newblock Interval pattern structures for interpreting k-nearest neighbor
+  approach in lazy classification.
+\newblock In {\em FCA4AI@ IJCAI}, pages 17--24, 2023.
+
+\bibitem{wang2015falling}
+Fulton Wang and Cynthia Rudin.
+\newblock Falling rule lists.
+\newblock In {\em Artificial intelligence and statistics}, pages 1013--1022.
+  PMLR, 2015.
+
+\bibitem{7837984}
+Tong Wang, Cynthia Rudin, Finale Velez-Doshi, Yimin Liu, Erica Klampfl, and
+  Perry MacNeille.
+\newblock Bayesian rule sets for interpretable classification.
+\newblock In {\em 2016 IEEE 16th International Conference on Data Mining
+  (ICDM)}, pages 1269--1274, 2016.
+
+\bibitem{wang2007novel}
+Yanbo~J Wang, Qin Xin, and Frans Coenen.
+\newblock A novel rule ordering approach in classification association rule
+  mining.
+\newblock In {\em International Workshop on Machine Learning and Data Mining in
+  Pattern Recognition}, pages 339--348. Springer, 2007.
+
+\bibitem{wille2009restructuring}
+Rudolf Wille.
+\newblock Restructuring lattice theory: an approach based on hierarchies of
+  concepts.
+\newblock In {\em International conference on formal concept analysis}, pages
+  314--339. Springer, 2009.
+
+\bibitem{yin2003cpar}
+Xiaoxin Yin and Jiawei Han.
+\newblock Cpar: Classification based on predictive association rules.
+\newblock In {\em Proceedings of the 2003 SIAM international conference on data
+  mining}, pages 331--335. SIAM, 2003.
+
+\bibitem{zaiane2005pruning}
+Osmar~R Zaiane and Maria-Luiza Antonie.
+\newblock On pruning and tuning rules for associative classifiers.
+\newblock In {\em International Conference on Knowledge-Based and Intelligent
+  Information and Engineering Systems}, pages 966--973. Springer, 2005.
+
+\end{thebibliography}
