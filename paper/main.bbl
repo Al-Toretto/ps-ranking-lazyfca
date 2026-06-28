@@ -181,6 +181,13 @@ Alan Tomat.
   approach in lazy classification.
 \newblock In {\em FCA4AI@ IJCAI}, pages 17--24, 2023.
 
+\bibitem{TOMAT2026109754}
+Alan Tomat and Sergei~O. Kuznetsov.
+\newblock Interpretable lazy classification with interval pattern structures
+  and local interval explanations.
+\newblock {\em International Journal of Approximate Reasoning}, page 109754,
+  2026.
+
 \bibitem{wang2015falling}
 Fulton Wang and Cynthia Rudin.
 \newblock Falling rule lists.

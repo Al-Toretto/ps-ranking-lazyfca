@@ -6,7 +6,11 @@ paper/refs/
 paper/refs_text/
 paper/*.pdf
 
-paper_experiments/results/
+datasets/*
+!datasets/.gitkeep
+!datasets/README.md
+
+experiments/results/
 *.pkl
 *.parquet
 *.log

@@ -8,7 +8,7 @@
 \usepackage{multirow}
 \usepackage{enumitem}
 
-\title{Compact Local Classification with Ranked Pattern-Structure Hypotheses}
+\title{Compact Local Classification with Ranked Pattern-Structure Classifier Candidates}
 \author{Alan Tomat \and TODO: Student Coauthors}
 \date{\today}
 
@@ -17,19 +17,20 @@
 
 \begin{abstract}
 Lazy classification with pattern structures avoids constructing the full
-concept lattice, but it can still generate a large number of local hypotheses
-for each query object. Although each hypothesis is interpretable, aggregating a
-large unranked set can reduce both predictive quality and explanation clarity.
-This paper studies a ranking-and-selection framework for LazyFCA-style
-classification. For each query, hypotheses generated for all classes are placed
-in a common pool, ranked by hypothesis-importance metrics, and only the top
-$k$ hypotheses are retained for voting. We evaluate whether compact ranked
-hypothesis sets preserve or improve predictive performance while greatly
-reducing explanation size. The study compares purity-based, support-based,
-locality-based, statistical, and hybrid ranking metrics on several tabular
-datasets with numerical and categorical attributes. Preliminary motivation
-suggests that locality-aware purity metrics, such as query-weighted precision
-and query-weighted log-odds ratio, are promising for compact local explanations.
+concept lattice, but it can still generate a large number of query-dependent
+classifier candidates for each query object. Each candidate is obtained from a
+query-source intersection and has an interpretable pattern description, but
+aggregating a large unranked set can reduce both predictive quality and
+explanation clarity. This paper studies a ranking-and-selection framework for
+LazyFCA-style classification. For each query, candidate classifiers generated
+for all classes are placed in a common pool, ranked by candidate-importance
+metrics, and only the top $k$ candidates are retained for voting. We evaluate
+whether compact ranked candidate sets preserve or improve predictive
+performance while greatly reducing explanation size. The study compares
+purity-based, support-based, locality-based, statistical, and hybrid ranking
+metrics on tabular numerical datasets. Preliminary motivation suggests that
+locality-aware purity metrics, such as query-weighted precision and
+query-weighted log-odds ratio, are promising for compact local explanations.
 \end{abstract}
 
 \section{Introduction}
@@ -44,20 +45,21 @@ A central obstacle is scalability. Constructing a full concept lattice can be
 expensive or infeasible for realistic datasets. LazyFCA addresses this by
 classifying each query object locally. Instead of building a full lattice, it
 intersects the query with training objects and obtains a set of local
-hypotheses. Each hypothesis has an interpretable pattern description and can be
-tested against same-class and opposite-class training objects.
+candidate classifiers. Each candidate has an interpretable pattern description
+and can be evaluated against same-class and opposite-class training objects.
 
-However, a second problem appears: LazyFCA may generate many hypotheses per
-query. Using all of them equally can be harmful. Some hypotheses are highly
+However, a second problem appears: LazyFCA may generate many candidates per
+query. Using all of them equally can be harmful. Some candidates are highly
 specific, redundant, weakly supported, or misleading with respect to the query.
-Thus, while each individual hypothesis is interpretable, the final explanation
-can become too large, and the voting procedure can be noisy.
+Thus, while each individual pattern description is interpretable, the final
+explanation can become too large, and the voting procedure can be noisy.
 
-This paper investigates whether hypothesis ranking can make LazyFCA both more
+This paper investigates whether candidate ranking can make LazyFCA both more
 compact and more accurate. The guiding question is:
 
 \begin{quote}
-Can we rank local pattern-structure hypotheses so that a small top-$k$ subset
+Can we rank local pattern-structure classifier candidates so that a small
+top-$k$ subset
 retains most of the predictive quality and yields a more interpretable local
 explanation?
 \end{quote}
@@ -65,13 +67,13 @@ explanation?
 The main contributions are intended to be:
 
 \begin{itemize}[leftmargin=*]
-    \item A global pooled top-$k$ selection framework for LazyFCA hypotheses,
-    where hypotheses from all classes compete in one ranking.
-    \item A systematic empirical comparison of hypothesis-importance metrics
+    \item A global pooled top-$k$ selection framework for LazyFCA classifier
+    candidates, where candidates from all classes compete in one ranking.
+    \item A systematic empirical comparison of candidate-importance metrics
     for compact LazyFCA classification.
     \item An analysis of the tradeoff between predictive quality and number of
-    retained hypotheses.
-    \item A discussion of singleton source-query hypotheses, where $tp=1$ is
+    retained candidates.
+    \item A discussion of singleton source-query candidates, where $tp=1$ is
     generated by construction and should not be interpreted as independent
     multi-object support.
 \end{itemize}
@@ -80,64 +82,203 @@ The main contributions are intended to be:
 
 \subsection{Formal Concept Analysis}
 
-TODO: Introduce a formal context $(G, M, I)$, object and attribute derivation
-operators, formal concepts, extents, intents, and concept lattices. Explain why
-FCA concepts are interpretable: each concept corresponds to a maximal group of
-objects sharing a maximal common description.
+Formal Concept Analysis (FCA) represents data by a formal context
+$(G,M,I)$, where $G$ is a set of objects, $M$ is a set of attributes, and
+$I \subseteq G \times M$ records which objects have which attributes. FCA was
+introduced as a framework for organizing knowledge through hierarchies of
+concepts \cite{wille2009restructuring}; the standard mathematical treatment is
+given by Ganter and Wille \cite{ganter1999formal}.
+
+The basic construction is a pair of derivation operators. For a set of objects
+$A \subseteq G$, the common attributes of those objects are
+\[
+    A' = \{m \in M \mid (g,m) \in I \text{ for all } g \in A\}.
+\]
+For a set of attributes $B \subseteq M$, the objects sharing all attributes in
+$B$ are
+\[
+    B' = \{g \in G \mid (g,m) \in I \text{ for all } m \in B\}.
+\]
+A formal concept is a pair $(A,B)$ such that $A'=B$ and $B'=A$. The set
+$A$ is the extent of the concept, and $B$ is its intent. Thus a concept is not
+only a cluster of objects and not only a rule-like description: it is a maximal
+set of objects together with the maximal set of attributes common to exactly
+those objects.
+
+Formal concepts are ordered by extent inclusion, equivalently by reverse intent
+inclusion. This order forms the concept lattice. The lattice order has a
+natural interpretation: concepts with larger extents and smaller intents are
+more general, while concepts with smaller extents and richer intents are more
+specific. This explicit object-description duality is the main reason FCA is
+useful for interpretable data analysis: a prediction or candidate description can be
+inspected through the objects it covers and the attributes that justify the
+coverage \cite{carpineto2004concept,ignatov2014introduction}.
 
 \subsection{Pattern Structures}
 
-TODO: Introduce pattern structures as a generalization of FCA from binary
-attributes to complex descriptions. A pattern structure is typically described
-as $(G, (D, \sqcap), \delta)$, where $G$ is a set of objects, $D$ is a
-semilattice of descriptions, $\sqcap$ is a similarity or meet operation, and
-$\delta$ maps objects to descriptions.
+Classical FCA assumes that object descriptions are binary attributes. Pattern
+structures extend the same concept-forming idea to complex descriptions
+\cite{ganter2001pattern,kuznetsov2009pattern}. A pattern structure is usually
+written as
+\[
+    (G,(D,\sqcap),\delta),
+\]
+where $G$ is a set of objects, $D$ is a description space, $\sqcap$ is a meet
+or similarity operation on descriptions, and $\delta:G \to D$ maps each object
+to its description. The description space is ordered by the meet operation:
+we write $d_1 \sqsubseteq d_2$ when $d_1 \sqcap d_2 = d_1$. With this
+convention, $d_1$ is at least as general as $d_2$.
 
-For interval pattern structures, numerical objects are represented by
-component-wise intervals. The meet of two descriptions is the component-wise
-common generalization. In the implementation used in this paper, intersecting a
-query object with a source object yields a hyper-rectangle:
+The derivation operators are analogous to those in FCA. For
+$A \subseteq G$, the common description of the objects in $A$ is
+\[
+    A^{\diamond} = \mathop{\sqcap}\limits_{g \in A} \delta(g).
+\]
+For a description $d \in D$, the objects described by $d$ are
+\[
+    d^{\diamond} = \{g \in G \mid d \sqsubseteq \delta(g)\}.
+\]
+A pattern concept is a pair $(A,d)$ such that $A^{\diamond}=d$ and
+$d^{\diamond}=A$. The formal role of the intent is therefore played by a
+structured description rather than by a set of binary attributes.
+
+This generalization is important for machine-learning data because numerical,
+set-valued, sequential, relational, or graph-like objects need not be reduced
+to a large binary table before concept-based analysis is possible
+\cite{kuznetsov2013fitting,kaytoue2015pattern,buzmakov2016mining}. Different
+choices of $D$ and $\sqcap$ lead to different kinds of interpretable
+descriptions. In this paper, the main description language is the interval
+pattern structure for numerical data.
+
+\subsection{Interval Pattern Structures}
+
+Interval pattern structures describe numerical objects by axis-parallel
+intervals. For a $d$-dimensional numerical object
+$x=(x_1,\ldots,x_d)$, the object description can be viewed as the degenerate
+interval vector
+\[
+    \delta(x) = ([x_1,x_1],\ldots,[x_d,x_d]).
+\]
+A general interval description is a vector
+\[
+    d = ([\ell_1,u_1],\ldots,[\ell_d,u_d]),
+\]
+where each component gives the admissible range of one feature. The natural
+coverage relation is coordinate-wise: an object $x$ is covered by $d$ when
+$\ell_j \leq x_j \leq u_j$ for every feature $j$. Thus an interval pattern is
+readable as a hyper-rectangle in the original feature space.
+
+The meet operation used here is the component-wise common generalization of
+interval descriptions. For two one-dimensional intervals
+$[\ell_1,u_1]$ and $[\ell_2,u_2]$, this operation returns
+\[
+    [\min(\ell_1,\ell_2), \max(u_1,u_2)].
+\]
+For several numerical features, the operation is applied independently to
+each coordinate. Under this convention, wider intervals are more general
+because they cover more objects, and narrower intervals are more specific.
+This is the interval-pattern analogue of replacing several binary attributes
+by their common description. Numerical pattern mining with FCA and pattern
+structures has been studied as an alternative to losing information through
+coarse binarization \cite{article}.
+
+For the local classifier candidates studied in this paper, each candidate is
+generated from a query object $x$ and a source training object $s$. Their
+common interval description is
 
 \[
     [\min(x_j, s_j), \max(x_j, s_j)]
 \]
 
-for each numerical feature $j$, and a conjunction of shared active binary
-features for categorical features after one-hot encoding.
+for each numerical feature $j$. Across all numerical features, this is an
+axis-parallel hyper-rectangle containing both objects. This construction is
+local to the query: a different query object produces a different family of
+interval candidates even when the training set is fixed. In the main
+numerical experiments, the retained explanation for a prediction is therefore
+a small set of such query-dependent interval patterns. When mixed data are
+processed by the implementation, categorical variables are one-hot encoded and
+the categorical part of a candidate is represented by shared active Boolean
+features; however, the paper-level comparison is intended to focus on
+numerical datasets where the interval description is the primary explanatory
+object.
 
 \subsection{LazyFCA Classification}
 
-TODO: Describe the LazyFCA procedure for binary and multi-class classification.
-For a query object $q$ and class $c$, each training object $s$ of class $c$
-generates one local hypothesis $h(q,s)$. This hypothesis is evaluated by how
-many same-class supporters and opposite-class opposers it covers.
+Constructing a full concept or pattern-concept lattice may be unnecessary or
+too expensive when the task is to classify one query object. LazyFCA-style
+classification avoids full lattice construction by generating candidate
+classifiers only around the query. Lazy classification with interval pattern
+structures was
+studied for credit scoring by Masyutin, Kashnitsky, and Kuznetsov
+\cite{masyutin2015lazy}; related interval-pattern lazy classifiers and local
+interval explanations are also considered in recent work on IPS-based
+classification \cite{TOMAT2026109754}.
 
-For each generated hypothesis we define:
+The terminology requires some care. In concept-based learning with pattern
+structures, a positive hypothesis has a stricter formal meaning: it is a
+pattern that is the common description of some positive examples and does not
+cover negative examples \cite{kuznetsov2009pattern,kuznetsov2013fitting}.
+Masyutin et al. distinguish $\alpha$-weak premises, also called classifiers,
+from $\alpha$-weak hypotheses; the former may be more general than a common
+description of positive examples, while the latter require equality with such a
+common description \cite{masyutin2015lazy}. Therefore, in this paper a
+query-source intersection is not called a hypothesis by default. It is a
+candidate classifier, or premise candidate, until its coverage and ranking are
+evaluated.
+
+Let the training set be divided into classes. For a query object $q$ and a
+class $c$, every training object $s$ with label $c$ is used as a source object.
+The meet of the query description and the source description produces a local
+candidate classifier
+\[
+    z(q,s,c).
+\]
+For interval data, this candidate is the smallest axis-parallel interval
+pattern containing both $q$ and $s$. The candidate is then evaluated against
+the training data: same-class objects are supporters, and objects from all
+other classes are opposers. A candidate is useful when it covers enough
+supporters while avoiding opposers, although different LazyFCA variants define
+and aggregate usefulness in different ways.
+
+For each generated candidate $z$ we define:
 
 \begin{align*}
-tp &= \text{number of class-}c\text{ training objects covered by the hypothesis},\\
-fp &= \text{number of non-class-}c\text{ training objects covered by the hypothesis},\\
-fn &= \text{number of class-}c\text{ training objects not covered},\\
-tn &= \text{number of non-class-}c\text{ training objects not covered}.
+tp(z) &= \text{number of class-}c\text{ training objects covered by }z,\\
+fp(z) &= \text{number of non-class-}c\text{ training objects covered by }z,\\
+fn(z) &= \text{number of class-}c\text{ training objects not covered by }z,\\
+tn(z) &= \text{number of non-class-}c\text{ training objects not covered by }z.
 \end{align*}
 
-Traditional LazyFCA variants often aggregate all surviving positive and
-negative hypotheses, possibly after threshold filtering. This paper instead
-studies ranking and selecting a compact subset.
+In binary LazyFCA, this procedure is often described in terms of positive and
+negative premises or classifiers. In the multiclass setting used in this paper, the same
+logic is applied one class at a time: for each class $c$, the supporters are
+the training objects of class $c$, and the opposers are all remaining training
+objects. All generated class-specific candidates can then be aggregated to
+predict the class of $q$.
+
+A practical difficulty is that the number of local candidates can be large,
+often on the order of the number of training objects. Moreover, each candidate
+is built from the query and a same-class source object, so the source object is
+covered by construction and $tp(z) \geq 1$. Consequently, a high-purity
+candidate may sometimes be a narrow source-query description rather than a
+broadly supported formal hypothesis or rule. This paper keeps the LazyFCA
+candidate-generation mechanism but studies a different aggregation question:
+after the local candidates have been generated, can they be ranked in a common pool and
+reduced to a compact top-$k$ subset without losing predictive quality?
 
 \section{Related Work}
 
 This work is located at the intersection of FCA and pattern structures,
-lazy hypothesis-based classification, associative and rule-based
-classification, and local interpretable machine learning. The common thread
-across these areas is the tension between expressive local evidence and
-compact human-readable decision support. FCA and pattern structures provide
-the mathematical language for closed descriptions and interpretable
-hypotheses; associative classifiers and rule learners provide a long history
-of ranking, pruning, and aggregating many candidate rules; local explanation
-methods motivate query-dependent evidence; and prototype methods show that
-small sets of source examples can be legitimate explanations rather than
-merely compressed training data.
+lazy premise-based classification, associative and rule-based classification,
+and local interpretable machine learning. The common thread across these
+areas is the tension between expressive local evidence and compact
+human-readable decision support. FCA and pattern structures provide the
+mathematical language for closed descriptions and interpretable premises;
+associative classifiers and rule learners provide a long history of ranking,
+pruning, and aggregating many candidate rules; local explanation methods
+motivate query-dependent evidence; and prototype methods show that small sets
+of source examples can be legitimate explanations rather than merely
+compressed training data.
 
 \subsection{FCA, Pattern Structures, and Concept-Based Learning}
 
@@ -175,9 +316,9 @@ the computational burden of pattern structures by simplifying the description
 space before or during mining \cite{buzmakov2015revisiting}; more recent
 generalizations study broader algebraic settings such as pattern setups and
 multistructures \cite{belfodil2020pattern}. These works establish the
-mathematical and computational setting in which our hypotheses live, but they
-do not directly answer which generated local hypotheses should be retained
-for a specific prediction.
+mathematical and computational setting in which our interval-pattern
+candidate classifiers live, but they do not directly answer which generated
+local candidates should be retained for a specific prediction.
 
 The concept-based machine-learning literature also studies how FCA
 representations can support interpretable prediction. Kwuida and Ignatov
@@ -195,34 +336,35 @@ The most direct predecessor of the present paper is the work on lazy
 classification with interval pattern structures for credit scoring
 \cite{masyutin2015lazy}. That paper motivates pattern structures for
 non-binary credit data, where full concept-lattice construction can be too
-expensive, and defines weak positive and negative hypotheses in an interval
-pattern-structure setting. Its central observation is especially important
-for our study: in high-dimensional numerical contexts, intersecting the test
-object with every training object often produces very specific premises whose
-extent contains only the test object and the source object. As a result, the
-number of positive and negative premises can become close to the number of
-training objects, and simple voting over such low-support premises becomes
-hard to interpret and may be unreliable. To address this, Masyutin et al.
-propose a stochastic modification that intersects the query with random
-subsamples of class-specific contexts, controlled by subsample size, number of
-iterations, and an alpha threshold.
+expensive, and distinguishes weak positive and negative premises or classifiers
+from the stricter notion of weak hypotheses in an interval pattern-structure
+setting. Its central observation is especially important for our study: in
+high-dimensional numerical contexts, intersecting the test object with every
+training object often produces very specific premises whose extent contains
+only the test object and the source object. As a result, the number of
+positive and negative premises can become close to the number of training
+objects, and simple voting over such low-support premises becomes hard to
+interpret and may be unreliable. To address this, Masyutin et al. propose a
+stochastic modification that intersects the query with random subsamples of
+class-specific contexts, controlled by subsample size, number of iterations,
+and an alpha threshold.
 
 Our work addresses the same failure mode from a different angle. Instead of
 replacing object-query intersections by random batch-query intersections, we
-keep the local hypothesis-generation mechanism and study whether the
-generated hypotheses can be ranked and pruned after generation. This makes
-the contribution complementary to randomized LazyFCA-like classification:
-randomization tries to obtain broader hypotheses by changing how hypotheses
-are generated, whereas our ranking framework asks which already generated
-hypotheses should be allowed to vote. The distinction matters experimentally
+keep the local query-source intersection mechanism and study whether the
+generated candidates can be ranked and pruned after generation. This makes the
+contribution complementary to randomized LazyFCA-like classification:
+randomization tries to obtain broader premises by changing how candidates are
+generated, whereas our ranking framework asks which already generated
+candidates should be allowed to vote. The distinction matters experimentally
 because a ranking method can be evaluated as a post-generation compactness
-mechanism and can be compared against both all-hypothesis aggregation and
+mechanism and can be compared against both all-candidate aggregation and
 random top-$k$ selection.
 
 The IPS-KNN method \cite{tomat2023interval} provides another closely related
 but distinct direction. IPS-KNN uses interval pattern structures to make
 distance-weighted $k$-nearest-neighbor classification interpretable. Rather
-than producing a large set of LazyFCA hypotheses, it constructs an interval
+than producing a large set of LazyFCA candidate classifiers, it constructs an interval
 pattern as a reason for classification from the query and a selected set of
 nearest neighbors. This supports an important premise of the present paper:
 a compact interval-pattern description, and in the limiting case even one
@@ -231,7 +373,7 @@ IPS-KNN is not a direct baseline for our first experimental study because it
 changes the underlying classifier to a nearest-neighbor method. We use it
 primarily as conceptual evidence that compact local interval-pattern reasons
 are useful and interpretable, while the present paper focuses on ranking and
-pruning hypotheses within the LazyFCA family.
+pruning candidate classifiers within the LazyFCA family.
 
 \subsection{Associative Classification, Rule Ordering, and Pruning}
 
@@ -253,7 +395,7 @@ enumerating all frequent class-association rules.
 Survey work on associative classification explicitly identifies rule
 discovery, ranking, pruning, prediction, and evaluation as separate design
 choices \cite{thabtah2007review}. This separation is useful for our paper
-because LazyFCA hypothesis generation and LazyFCA hypothesis aggregation are
+because LazyFCA candidate generation and LazyFCA candidate aggregation are
 often discussed together, whereas our contribution isolates the aggregation
 stage and studies the ranking function as the object of experimentation.
 Wang, Xin, and Coenen \cite{wang2007novel} review common rule-ordering
@@ -264,7 +406,7 @@ motivate the problem in terms that map directly onto our setting: association
 rule mining can produce so many human-readable rules that the model is no
 longer human-readable, and pruning should reduce the rule set without
 damaging accuracy. Their discussion of true positives and false positives of
-individual rules is particularly close to our use of per-hypothesis
+individual rules is particularly close to our use of per-candidate
 contingency values.
 
 Lazy associative classification is also relevant. Baralis, Chiusano, and
@@ -275,7 +417,7 @@ representation. Although this work is not based on FCA or pattern structures,
 it is an important analogue: it treats the prediction-time use of a large
 interpretable rule collection as a separate problem from rule generation.
 
-\subsection{Rule-Quality and Hypothesis-Importance Measures}
+\subsection{Rule-Quality and Candidate-Importance Measures}
 
 The metrics evaluated in this paper draw from several traditions rather than
 from a single established LazyFCA ranking theory. Precision and support are
@@ -291,7 +433,7 @@ Flach, and Lavrac \cite{todorovski2000predictive} define WRAcc as
 $p(B)(p(H \mid B)-p(H))$, where $B$ is the rule body and $H$ the target class.
 They motivate it as an alternative rule-evaluation measure that trades off
 improvement over the default class rule with the number of examples covered.
-This is close to our compactness question: a useful LazyFCA hypothesis should
+In our setting, this suggests that a useful LazyFCA candidate classifier should
 not only be pure, but should also be nontrivial with respect to the class
 prior and the number of objects it describes.
 
@@ -302,8 +444,8 @@ subgroup size into account \cite{atzmueller2005exploiting}. This motivates
 exceptionality-based metrics such as relative gain, binomial quality
 functions, WRAcc-like scores, and other measures that penalize both trivial
 coverage and weak deviation from the population. The connection to our work
-is conceptual rather than algorithmic: each LazyFCA hypothesis can be viewed
-as a local subgroup description induced by the query and a source object, and
+is conceptual rather than algorithmic: each LazyFCA candidate can be viewed as
+a local subgroup description induced by the query and a source object, and
 ranking asks which of these descriptions are most informative for prediction.
 
 FCA itself offers importance notions that are not purely predictive. Concept
@@ -311,7 +453,7 @@ stability measures how robust a concept intent is to removing objects from
 its extent and has been used to reduce large concept lattices to more
 meaningful taxonomies \cite{kuznetsov2009concept}. Stability is attractive
 because it captures robustness rather than only accuracy, but it is expensive
-and its meaning changes in our lazy setting: generated hypotheses are
+and its meaning changes in our lazy setting: generated candidates are
 query-dependent and often have very small extents. We therefore treat
 stability-related quantities as one family of candidate metrics rather than
 as the only principled importance criterion.
@@ -333,8 +475,9 @@ scalability in rule-based classifiers \cite{ghosh2022efficient}.
 
 These methods differ from our setting because they learn a global compact
 model or a global surrogate. In contrast, LazyFCA produces query-specific
-hypotheses, and the compact model for one query need not be the compact model
-for another. Nevertheless, the rule-list and rule-set literature supports a
+candidate classifiers, and the compact candidate set for one query need not be
+the compact candidate set for another. Nevertheless, the rule-list and
+rule-set literature supports a
 key assumption of this paper: interpretability is not guaranteed merely
 because individual rules are symbolic. The number of rules, their ordering,
 their redundancy, and the way conflicts are resolved are part of the
@@ -350,7 +493,7 @@ setting is not the perturbation mechanism itself, but the principle of local
 fidelity: an explanation should be faithful in the neighborhood of the
 instance being explained, and globally important features or rules may be
 irrelevant locally. Query-similarity-weighted metrics adapt this principle to
-pattern-structure hypotheses by favoring hypotheses whose descriptions remain
+pattern-structure candidates by favoring candidate descriptions that remain
 close to the query while still providing class evidence.
 
 Prototype and case-based methods give a second justification for local
@@ -359,22 +502,22 @@ selection as interpretability through sparsity in samples rather than
 sparsity in variables. ProtoPNet \cite{chen2019looks} shows the same idea in
 a modern neural setting: predictions can be explained by similarity to learned
 prototypes. These works are useful for interpreting singleton or near-singleton
-LazyFCA hypotheses. In our setting, every generated hypothesis is constructed
+LazyFCA candidates. In our setting, every generated candidate is constructed
 from the query and at least one source object, so $tp \geq 1$ by construction.
-A hypothesis with $tp=1$ should not be mistaken for a broadly supported rule,
-but it can still carry local prototype-like evidence. The empirical question
-is whether ranking functions can distinguish useful local source-query
-evidence from harmful or redundant singleton hypotheses.
+A candidate with $tp=1$ should not be mistaken for a broadly supported formal
+hypothesis or rule, but it can still carry local prototype-like evidence. The
+empirical question is whether ranking functions can distinguish useful local
+source-query evidence from harmful or redundant singleton candidates.
 
 \subsection{Gap Addressed by This Work}
 
 Existing work gives strong reasons to care about interpretable local
-hypotheses, rule quality, pruning, compactness, and locality. However, the
+candidates, rule quality, pruning, compactness, and locality. However, the
 specific problem studied here remains underexplored: given the large set of
-query-dependent pattern-structure hypotheses produced by LazyFCA-style
-classification, how should one rank hypotheses from all classes in a single
-pool, and how many of the top-ranked hypotheses are actually needed for an
-accurate and interpretable prediction? Randomized interval-pattern lazy
+query-dependent pattern-structure candidate classifiers produced by
+LazyFCA-style classification, how should one rank candidates from all classes
+in a single pool, and how many of the top-ranked candidates are actually
+needed for an accurate and interpretable prediction? Randomized interval-pattern lazy
 classification changes the generation process \cite{masyutin2015lazy};
 associative classifiers prune and order global class-association rules
 \cite{liu1998integrating,li2001cmar,baralis2008lazy}; compact rule learners
@@ -382,154 +525,332 @@ learn global rule models \cite{letham2015interpretable,angelino2018learning};
 and local explanation methods explain black-box predictions
 \cite{ribeiro2016should}. Our contribution is narrower and more specific:
 we study post-generation ranking and compact top-$k$ selection for local
-pattern-structure hypotheses, with hypotheses from all classes competing in
-one common ranking.
+pattern-structure classifier candidates, with candidates from all classes
+competing in one common ranking.
 
-\section{Problem Formulation}
+\section{Method}
 
-Let $C(q)$ be the set of all local hypotheses generated for a query $q$ across
-all classes. Each hypothesis $h \in C(q)$ has:
+\subsection{Global Pooled Top-k Selection}
 
-\begin{itemize}[leftmargin=*]
-    \item a predicted class label $y(h)$,
-    \item an interpretable pattern description,
-    \item contingency values $tp, fp, tn, fn$,
-    \item optional geometric and query-locality values.
-\end{itemize}
-
-Given a ranking function $r(h)$ and a budget $k$, the proposed classifier keeps
-
+Let $T=\{(x_i,y_i)\}_{i=1}^{n}$ be the training set, and let
+$Y=\{0,\ldots,C-1\}$ be the set of class labels after encoding. For a query
+object $q$ and a class $c \in Y$, LazyFCA generates one candidate classifier
+from each training object of class $c$. We denote the resulting class-specific
+candidate set by
 \[
-    C_k(q) = \operatorname{top}_k \{h \in C(q) : r(h)\}.
+    \mathcal{P}_c(q) = \{z(q,s,c) \mid (s,y_s) \in T,\; y_s=c\}.
 \]
-
-The predicted class is obtained by a class-count vote over retained hypotheses:
-
+The complete query-dependent candidate pool is
 \[
-    \hat{y}(q) = \arg\max_c |\{h \in C_k(q) : y(h)=c\}|.
+    \mathcal{P}(q) = \bigcup_{c \in Y} \mathcal{P}_c(q).
 \]
+Each candidate $z \in \mathcal{P}(q)$ has a class label $y(z)$, an
+interval-pattern description, contingency values $tp(z),fp(z),tn(z),fn(z)$, and optional
+geometry or locality values derived from the description.
 
-If class counts tie, the implementation breaks ties by the sum of ranking
-scores among retained hypotheses of each tied class, then by the class prior in
-the training data, and finally by the lower encoded class label.
-
-The research problem is to find ranking metrics that produce good
-accuracy-compactness tradeoffs:
-
+Given a ranking metric $m$, the implementation converts it into a score
+$r_m(z)$ that is maximized. Most metrics are used directly. Metrics whose
+natural interpretation is ``smaller is better'', such as false positives,
+false negatives, error rate, and description volume, are multiplied by $-1$
+for ranking. For an explanation budget $k$, the retained set is
 \[
-    \text{high predictive quality with small } k.
+    \mathcal{P}_{k,m}(q) =
+    \operatorname{top}_k\{z \in \mathcal{P}(q) \text{ sorted by } r_m(z)\}.
 \]
+If fewer than $k$ candidates are available, all available candidates are
+retained.
 
-\section{Hypothesis Ranking Metrics}
+The word ``global'' is important. The top-$k$ operation is applied to the
+single pooled set $\mathcal{P}(q)$, not separately within each class. Therefore
+the retained explanation may contain an unequal number of candidates per class.
+This is intentional: a per-class quota can force weak candidates from a class to
+remain, whereas a common pool lets the ranking metric suppress low-scoring
+evidence regardless of class.
 
-This section will describe the metric families evaluated in the experiments.
-The current implementation computes all registered metrics, but the paper will
-focus on the metrics that are theoretically meaningful and empirically strong.
+Prediction is based on a count vote over retained candidates. For each class
+$c$, define
+\[
+    N_c(q) = |\{z \in \mathcal{P}_{k,m}(q) \mid y(z)=c\}|
+\]
+and
+\[
+    S_c(q) = \sum_{z \in \mathcal{P}_{k,m}(q):\,y(z)=c} r_m(z).
+\]
+The predicted class is selected lexicographically by retained count, summed
+score, training-set class prior $\pi_c$, and finally the lower encoded label:
+\[
+    \hat{y}(q) =
+    \operatorname*{arg\,max}_{c \in Y}^{\mathrm{lex}}
+    \bigl(N_c(q), S_c(q), \pi_c, -c\bigr).
+\]
+The score sum is used only to resolve count ties; it does not replace the
+primary voting rule. The research problem is to identify ranking metrics that
+produce favorable accuracy-compactness tradeoffs: high macro-F1 with a small
+number of retained interval-pattern candidates.
+
+\section{Candidate Ranking Metrics}
+
+The ranking metrics instantiate different notions of candidate importance:
+purity, support, contrast against the class prior, statistical dependence,
+geometric locality, and robustness. The implementation computes a broad set of
+registered metrics, but the analysis will focus on the metrics that are both
+interpretable and empirically useful.
+
+For a candidate classifier $z$ predicting class $c$, let
+\[
+    p = tp(z)+fn(z), \qquad n = fp(z)+tn(z), \qquad M=p+n.
+\]
+Here $p$ is the number of supporters for class $c$, $n$ is the number of
+opposers, and $M$ is the number of training objects. Let
+\[
+    \operatorname{cov}(z)=tp(z)+fp(z), \qquad
+    \rho_c=\frac{p}{M}
+\]
+denote the total number of objects covered by the candidate and the training
+prior of class $c$.
 
 \subsection{Purity and Coverage Metrics}
 
-Precision:
+The simplest metrics use the contingency table directly. Precision measures
+the class purity of the covered objects:
 
 \[
-    \operatorname{precision}(h) = \frac{tp}{tp + fp}.
+    \operatorname{precision}(z) = \frac{tp}{tp + fp}.
 \]
 
-Support:
+Support measures the fraction of same-class training objects covered:
 
 \[
-    \operatorname{support}(h) = \frac{tp}{P},
+    \operatorname{support}(z) = \frac{tp}{P},
 \]
 
-where $P$ is the number of training supporters for the hypothesis class.
+where $P=p$ is the number of training supporters for the candidate's class. The
+implementation also records the false-positive rate over opposers,
+$fp/n$, as an error-rate metric to be minimized, and the supporter-opposer
+ratio $tp/fp$ with the usual infinite value when $fp=0$.
 
-Smoothed log-odds ratio as implemented:
+Lift compares the precision of the candidate with the class prior:
+\[
+    \operatorname{lift}(z) =
+    \frac{\operatorname{precision}(z)}{\rho_c}.
+\]
+Values above one indicate that the covered region is more concentrated in
+class $c$ than the training set as a whole. Support, confidence/precision, and
+lift are standard rule-quality ingredients in associative classification and
+rule mining \cite{liu1998integrating,thabtah2007review}.
+
+The implementation also uses the following smoothed log-odds-like score:
 
 \[
-    \operatorname{LOR}(h) = \frac{2tp + 1}{2fp + 1}.
+    \operatorname{LOR}(z) = \frac{2tp + 1}{2fp + 1}.
 \]
 
 This score is not a classical log odds ratio in logarithmic form. It is better
 understood here as a support-sensitive purity score. When $fp=0$, it becomes
-$2tp+1$, so it breaks ties among pure hypotheses by same-class coverage.
+$2tp+1$, so it breaks ties among pure candidates by same-class coverage.
+Two support-sensitive variants multiply precision or this odds-like score by
+$\log(1+tp)$; another variant multiplies precision by $\sqrt{tp}$. These
+variants test whether same-class coverage should be used as a soft tie-breaker
+rather than as a hard filtering rule.
 
 \subsection{Statistical and Rule-Learning Metrics}
 
-TODO: Define and discuss WRAcc, lift, chi-square, G-test, Gini gain,
-information gain, Youden's $J$, and Matthews correlation coefficient. Explain
-which of these are standard in subgroup discovery, rule learning, or
-classification evaluation.
+Weighted relative accuracy (WRAcc) combines coverage with improvement over the
+class prior:
+\[
+    \operatorname{WRAcc}(z) =
+    \frac{tp+fp}{M}
+    \left(\operatorname{precision}(z)-\rho_c\right).
+\]
+This follows the subgroup-discovery and predictive-rule-learning intuition
+that a useful rule should cover a nontrivial region and should change the
+target-class frequency relative to the default distribution
+\cite{todorovski2000predictive,atzmueller2005exploiting}.
+
+The implementation also includes several standard two-by-two table scores.
+Youden's $J$ is
+\[
+    J(z)=\frac{tp}{tp+fn}-\frac{fp}{fp+tn},
+\]
+that is, sensitivity minus false-positive rate. Matthews correlation
+coefficient is
+\[
+    \operatorname{MCC}(z)=
+    \frac{tp\cdot tn - fp\cdot fn}
+    {\sqrt{(tp+fp)(tp+fn)(tn+fp)(tn+fn)}}.
+\]
+These metrics treat each candidate as a one-versus-rest binary classifier
+for its own predicted class.
+
+Information gain and Gini gain evaluate how much splitting the training set
+into covered and uncovered objects reduces label impurity. If
+\[
+    H(a,b)=-\frac{a}{a+b}\log_2\frac{a}{a+b}
+           -\frac{b}{a+b}\log_2\frac{b}{a+b}
+\]
+is binary entropy, with zero terms omitted, then the implemented information
+gain is
+\[
+    H(p,n) -
+    \frac{(tp+fp)H(tp,fp)+(fn+tn)H(fn,tn)}{M}.
+\]
+Gini gain uses the same covered/uncovered decomposition but replaces entropy
+by the binary Gini impurity
+\[
+    G(a,b)=1-\left(\frac{a}{a+b}\right)^2
+             -\left(\frac{b}{a+b}\right)^2.
+\]
+
+Finally, the $\chi^2$ score and the likelihood-ratio $G$-test compare the
+observed contingency table
+\[
+    \begin{pmatrix}
+    tp & fp\\
+    fn & tn
+    \end{pmatrix}
+\]
+with the table expected under independence between coverage and class label.
+For observed cells $O_i$ and expected cells $E_i$, the implemented scores are
+\[
+    \chi^2=\sum_i \frac{(O_i-E_i)^2}{E_i},
+    \qquad
+    G=2\sum_i O_i\log\frac{O_i}{E_i},
+\]
+with zero observed or expected terms handled safely.
 
 \subsection{Query Locality and Pattern Geometry}
 
-For numerical interval patterns, the implementation uses normalized interval
-widths:
+For interval pattern structures, geometry is part of interpretability. A
+shorter interval pattern is usually easier to inspect and remains closer to
+the query-source pair that generated it. For numerical interval patterns, the
+implementation uses normalized interval widths
 
 \[
-    w_j(h) = \frac{\operatorname{upper}_j(h) - \operatorname{lower}_j(h)}
+    w_j(z) = \frac{\operatorname{upper}_j(z) - \operatorname{lower}_j(z)}
     {\operatorname{range}_j}.
 \]
 
-Interval tightness is:
+The interval tightness score is
 
 \[
-    \operatorname{tightness}(h) = 1 - \frac{1}{d}\sum_{j=1}^{d} w_j(h).
+    \operatorname{tightness}(z) = 1 - \frac{1}{d}\sum_{j=1}^{d} w_j(z).
 \]
 
-For binary one-hot features, query binary similarity is the fraction of active
-query features retained in the hypothesis. The overall query similarity is the
-mean of binary and numerical similarity components when both are present.
+Thus a degenerate interval around the query receives high tightness, while a
+wide hyper-rectangle receives a lower score. Description volume is
+\[
+    \operatorname{volume}(z)=\prod_{j=1}^{d} w_j(z)
+\]
+and is minimized rather than maximized. The simplicity prior used by the
+implementation penalizes description complexity through
+\[
+    \operatorname{simplicity}(z)=
+    \frac{1}{1+\operatorname{complexity}(z)}.
+\]
+
+In the main numerical setting, query numeric similarity is the interval
+tightness score, and the overall query similarity is the same value. When
+one-hot Boolean features are present, query binary similarity is the fraction
+of active query features retained in the candidate, and the overall query
+similarity is the mean of the binary and numerical components. This gives a
+simple locality score in the spirit of local explanation methods that weight
+evidence by proximity to the explained instance \cite{ribeiro2016should}.
 
 \subsection{Hybrid Locality-Purity Metrics}
 
 The main hybrid metrics are:
 
 \[
-    \operatorname{QWP}(h) =
-    \operatorname{precision}(h) \cdot \operatorname{query\_similarity}(h),
+    \operatorname{QWP}(z) =
+    \operatorname{precision}(z) \cdot \operatorname{query\_similarity}(z),
 \]
 
 and
 
 \[
-    \operatorname{QWLOR}(h) =
-    \operatorname{LOR}(h) \cdot \operatorname{query\_similarity}(h).
+    \operatorname{QWLOR}(z) =
+    \operatorname{LOR}(z) \cdot \operatorname{query\_similarity}(z).
 \]
 
-These metrics prefer hypotheses that are both class-pure and local to the
-query. The working hypothesis is that such metrics better support compact
+These metrics prefer candidates that are both class-pure and local to the
+query. The working expectation is that such metrics better support compact
 local explanations than global support alone.
 
-\subsection{Singleton Source-Query Hypotheses}
+The implementation also evaluates locality-weighted variants of the
+support-sensitive scores, including precision multiplied by $\log(1+tp)$ or
+$\sqrt{tp}$ and the locality-weighted WRAcc score. These hybrids are useful
+because pure support can over-reward broad majority-class regions, while pure
+locality can select intervals that are close to the query but weakly related
+to the class label.
 
-A key methodological caveat is that every generated hypothesis is constructed
+\subsection{Stability-Inspired Metrics}
+
+FCA concept stability measures how robust a concept description is under
+changes to the objects in its extent and is commonly used as an importance
+notion for reducing large concept collections \cite{kuznetsov2009concept}.
+The lazy setting is different from full lattice construction because each
+candidate is query-dependent and may have a very small covered supporter
+set. For this reason, the implementation treats stability-like quantities as
+candidate ranking metrics rather than as definitive concept importance.
+
+The implemented stability-inspired score is computed from witness counts for
+the covered supporters: witnesses for retained or dropped Boolean conditions
+and witnesses for the lower and upper numerical interval bounds. The
+stability score multiplies factors of the form $1-2^{-w}$ over positive
+witness counts $w$, and $\Delta$-stability is the minimum such witness count.
+This gives a compact robustness proxy for local interval candidates, but its
+interpretation remains tied to the lazy candidate-generation procedure.
+
+\subsection{Singleton Source-Query Candidates}
+
+A key methodological caveat is that every generated candidate is constructed
 from the query and one same-class source object. Therefore, the source object is
-covered by construction and $tp \geq 1$. A hypothesis with $tp=1$ is not invalid,
-but it should be interpreted as a singleton source-query hypothesis rather than
+covered by construction and $tp \geq 1$. A candidate with $tp=1$ is not invalid,
+but it should be interpreted as a singleton source-query candidate rather than
 as evidence of generalization to multiple same-class objects.
 
-TODO: Decide whether to include an ablation using $tp \geq 2$ only. Earlier
-exploratory results suggest this can be diagnostically useful but too strict
-for some datasets.
+This distinction matters for both ranking and explanation. If a singleton
+candidate also has $fp=0$, then precision is one, and many such candidates can
+tie under pure contingency metrics. In that case, geometric locality,
+interval tightness, or support-sensitive tie-breakers may determine which
+source-query patterns are retained. Singleton candidates can still be useful:
+they behave like local prototype evidence, connecting the query to a concrete
+same-class training object through an interpretable interval pattern. The
+paper therefore does not treat $tp=1$ as an automatic failure. Instead,
+singleton rates are diagnostic quantities, and a possible $tp \geq 2$
+restriction is best understood as an ablation or robustness check rather than
+as the default definition of a valid LazyFCA candidate.
 
 \section{Experimental Design}
 
 \subsection{Datasets}
 
-The default experimental suite contains the following local datasets:
+The main paper-level comparison is intended to focus on numerical datasets.
+This keeps the interval pattern structure as the common description language
+and makes the proposed ranked LazyFCA method comparable with the imported
+FCALC, randomized FCALC, and IPS-KNN baselines, which are numerical-data
+methods. The repository also contains a mixed churn dataset, but it is best
+treated as a diagnostic or supplementary experiment unless the final paper
+explicitly broadens beyond numerical data.
+
+The numerical experimental suite contains:
 
 \begin{itemize}[leftmargin=*]
-    \item Breast cancer, binary, mostly numerical.
-    \item Churn, binary, mixed numerical/categorical after preprocessing.
+    \item Breast cancer, binary, numerical after dropping the identifier column.
     \item Page blocks, multi-class, numerical.
     \item Parkinsons, binary, numerical.
     \item Rice, binary, numerical.
     \item Sonar, binary, numerical.
     \item Spambase, binary, numerical.
     \item Waveform, binary in the current local file, numerical.
+    \item Ionosphere, binary, numerical.
+    \item Image segmentation, multi-class, numerical.
+    \item Vehicle, multi-class, numerical.
+    \item Glass, multi-class, numerical after dropping the identifier column.
 \end{itemize}
 
-TODO: Verify final dataset descriptions, source citations, preprocessing
-details, and class distributions before submission.
+Final source citations, class distributions, and train/test sizes should be
+reported after the experiment outputs are locked.
 
 \subsection{Protocol}
 
@@ -537,58 +858,72 @@ For each dataset:
 
 \begin{itemize}[leftmargin=*]
     \item Use stratified 80/20 train/test splits.
-    \item Repeat over seeds $0,1,2,3,4$.
+    \item Repeat over split seeds $1998,\ldots,2007$.
     \item Encode target labels as integers $0,\ldots,C-1$.
-    \item Pass numerical columns directly as interval features.
-    \item One-hot encode categorical columns as boolean features.
-    \item Do not scale numerical features, because the interval-pattern
-    implementation uses dataset-level numerical ranges for query similarity.
+    \item For the ranked LazyFCA runs, pass numerical columns directly as
+    interval features.
+    \item Do not scale numerical features in the ranked LazyFCA runs, because
+    interval widths and query similarities are computed relative to
+    dataset-level numerical ranges.
+    \item Use the same split seeds as the preserved imported baseline results
+    so that macro-F1 summaries are comparable over aligned repeats.
 \end{itemize}
 
 \subsection{Compared Methods}
 
-The experimental runner evaluates:
+The paper compares the proposed selection mechanism with LazyFCA-family and
+pruning baselines:
 
 \begin{itemize}[leftmargin=*]
-    \item Vanilla LazyFCA: all generated hypotheses are counted.
-    \item Global top-$k$ ranked LazyFCA: all class hypotheses are ranked in one
+    \item Global top-$k$ ranked LazyFCA: all class-specific candidates are ranked in one
     pool and only top-$k$ are retained.
-    \item Random top-$k$: hypotheses are randomly ordered as a sanity baseline.
+    \item Random top-$k$: candidates are randomly ordered as a sanity baseline.
+    \item Deterministic FCALC/LazyFCA baseline: imported from the related
+    interval-pattern lazy-classification study, with aggregation selected by
+    cross-validation on the training split.
+    \item Randomized FCALC/LazyFCA baseline: imported from the same study, with
+    aggregation and sampling parameters selected by cross-validation on the
+    training split.
 \end{itemize}
 
-Randomized LazyFCA and IPS-KNN are not included in the first systematic run.
-They may be added later as family-level or related-method comparisons.
+The current raw-count all-candidate implementation is kept only as an
+optional diagnostic. IPS-KNN is available as an optional external compact
+interval-pattern baseline, but it changes the classifier family from
+LazyFCA-style candidate aggregation to nearest-neighbor classification with a
+single compact interval reason. If reported, it should therefore be framed as
+family-level context rather than as the main baseline that defines success or
+failure of the ranking method.
 
 \subsection{Evaluation Measures}
 
-The primary metric is:
-
-\begin{itemize}[leftmargin=*]
-    \item Binary datasets: positive-class F1.
-    \item Multi-class datasets: macro-F1.
-\end{itemize}
+The primary predictive metric is macro-F1 for both binary and multi-class
+datasets. This choice is important because the imported FCALC, randomized
+FCALC, and IPS-KNN result files contain macro-F1 over the aligned split seeds
+but do not contain predictions or confusion matrices from which another
+binary-class-specific score could be reconstructed.
 
 The runner also stores accuracy, precision, recall, macro-F1, weighted-F1,
-AUC-ROC when available, confusion matrices, mean retained hypotheses, and
+AUC-ROC when available, confusion matrices, mean retained candidates, and
 compression ratio.
 
 For compactness, the main summary reports:
 
 \begin{itemize}[leftmargin=*]
-    \item best F1 and its corresponding $k$,
-    \item smallest $k$ within 1 percent, 3 percent, and 5 percent of best F1,
-    \item retained-hypothesis compression ratio.
+    \item best macro-F1 and its corresponding $k$,
+    \item smallest $k$ within 1 percent, 3 percent, and 5 percent of the best
+    macro-F1,
+    \item retained-candidate compression ratio.
 \end{itemize}
 
 \section{Implementation and Reproducibility}
 
 The experiments are implemented in the repository under
-\texttt{paper\_experiments/}. The runner is config-driven and incremental:
+\texttt{experiments/}. The runner is config-driven and incremental:
 
 \begin{itemize}[leftmargin=*]
-    \item \texttt{paper\_experiments/config.yaml} controls datasets, metrics,
+    \item \texttt{experiments/config.yaml} controls datasets, metrics,
     seeds, methods, and the $k$ grid.
-    \item \texttt{paper\_experiments/run\_paper\_experiments.py} streams one
+    \item \texttt{experiments/run\_experiments.py} streams one
     test query at a time to avoid storing all explanations in memory.
     \item Result chunks are written per dataset, seed, method, and metric.
     \item Completed chunks are skipped on rerun.
@@ -608,7 +943,7 @@ Suggested result tables:
 \caption{Accuracy-compactness summary. TODO: Fill from compactness summary.}
 \begin{tabular}{llrrrr}
 \toprule
-Dataset & Metric & Best $k$ & Best F1 & Smallest $k$ within 3\% & Compression \\
+Dataset & Metric & Best $k$ & Best macro-F1 & Smallest $k$ within 3\% & Compression \\
 \midrule
 TODO & TODO & TODO & TODO & TODO & TODO \\
 \bottomrule
@@ -641,14 +976,14 @@ TODO: Discuss which metric families work and why. Expected discussion points:
 
 \begin{itemize}[leftmargin=*]
     \item Vanilla LazyFCA can be weak because equal aggregation over all
-    hypotheses includes harmful hypotheses.
-    \item Global ranking allows hypotheses from all classes to compete, so a
+    candidates includes harmful candidates.
+    \item Global ranking allows candidates from all classes to compete, so a
     query may retain an unbalanced but useful set of class evidence.
     \item Locality-aware purity metrics may be more robust for compact
     explanations than support multipliers.
     \item Metrics that directly reward support can be biased toward majority
     classes or broad rules in imbalanced datasets.
-    \item Singleton hypotheses may carry useful nearest-neighbor-like local
+    \item Singleton candidates may carry useful nearest-neighbor-like local
     signal, but they should not be overinterpreted as generalized rules.
 \end{itemize}
 
@@ -661,8 +996,8 @@ TODO: Discuss:
     \item Sensitivity to train/test split seeds.
     \item Computational constraints and missing baselines.
     \item The difference between reducing explanation size and reducing
-    hypothesis generation time.
-    \item The interpretation of $tp=1$ source-query hypotheses.
+    candidate generation time.
+    \item The interpretation of $tp=1$ source-query candidates.
 \end{itemize}
 
 \section{Conclusion}
@@ -670,7 +1005,7 @@ TODO: Discuss:
 TODO: Summarize the final findings. The intended conclusion is that ranked
 global top-$k$ selection can make LazyFCA explanations dramatically more
 compact, and in some cases improve predictive quality by avoiding harmful
-hypothesis accumulation. The final statement must be grounded in the completed
+candidate accumulation. The final statement must be grounded in the completed
 experimental results.
 
 \section*{Acknowledgments}

@@ -1,0 +1,251 @@
+%% The first command in your LaTeX source must be the \documentclass command.
+%%
+%% Options:
+%% twocolumn : Two column layout.
+%% hf: enable header and footer.
+\documentclass[
+% twocolumn,
+% hf,
+]{ceurart}
+
+%%
+%% One can fix some overfulls
+\sloppy
+
+%%
+%% Minted listings support 
+%% Need pygment <http://pygments.org/> <http://pypi.python.org/pypi/Pygments>
+\usepackage{listings}
+%% auto break lines
+\lstset{breaklines=true}
+
+%%
+%% end of the preamble, start of the body of the document source.
+\begin{document}
+
+%% Rights management information.
+%% CC-BY is default license.
+\copyrightyear{2023}
+\copyrightclause{Copyright for this paper by its authors.
+  Use permitted under Creative Commons License Attribution 4.0
+  International (CC BY 4.0).}
+
+%%
+%% This command is for the conference information
+\conference{%
+Published in Sergei O. Kuznetsov, Amedeo Napoli, Sebastian Rudolph (Eds.):
+The 11th International Workshop "What can FCA do for Artificial Intelligence?",
+FCA4AI 2023, co-located with IJCAI 2023, August 20 2023, Macao, S.A.R. China,
+Proceedings, pp. 17--24.
+}
+
+%%
+%% The "author" command and its associated commands are used to define
+%% the authors and their affiliations.
+
+\author[1]{Alan Tomat}[%
+orcid=0009-0005-6641-2870,
+email=alantomat1998@gmail.com,
+]
+
+\address[1]{Moscow Institute of Physics and Technology,
+  Institutskiy per. 9, Dolgoprudny, Moscow Region 141700, Russia}
+  
+%%
+%% The "title" command
+
+\title{Interval pattern structures for interpreting K-nearest neighbor approach in lazy classification}
+
+\title[mode=sub]{Position Paper}
+
+
+
+
+
+%\author[2]{Sergei O. Kuznetsov}[%
+%orcid=0000-0003-3284-9001,
+%email=skuznetsov@hse.ru,
+%]
+
+
+%%
+%% The abstract is a short summary of the work to be presented in the
+%% article.
+\begin{abstract}
+This paper proposes IPS-KNN, an interpretable variant of the distance-weighted K-nearest neighbors (KNN) algorithm based on interval pattern structures, to address the limitation of KNN's lack of interpretability. The proposed algorithm provides a reason for the classification in the form of a pattern of the interval pattern structure describing the dataset. The intervals in the reason for classification provide insights into which features are important for the classification task and what values these features should have to produce a specific classification result. The IPS-KNN algorithm was evaluated on the red wine quality dataset, where it performed similarly to the distance-weighted KNN algorithm in terms of classification performance. The proposed algorithm can be used in applications where interpretability is important, such as in medical diagnosis or credit risk assessment.
+\end{abstract}
+
+%%
+%% Keywords. The author(s) should pick words that accurately describe
+%% the work being presented. Separate the keywords with commas.
+\begin{keywords}
+  lazy classification \sep
+  pattern structures \sep
+  interval pattern structures \sep
+  interpretable K-nearest neighbors
+\end{keywords}
+
+%%
+%% This command processes the author and affiliation and title
+%% information and builds the first part of the formatted document.
+\maketitle
+
+\section{Introduction}
+Lazy learning, also known as instance-based learning, is a type of machine learning algorithms that does not explicitly train the model. Instead, it stores all the training data and uses a similarity measure between the training data and the new data to make predictions \cite{aha1991instance}. The term "Lazy learning" was first introduced in 1991 in \cite{lowe1991learning}. It was defined as a type of machine learning algorithms that postpones the training process to the testing phase. That is until a new instance is provided for classification. The majority of lazy classification algorithms are K-Nearest Neighbors (KNN) algorithms \cite{wettschereck1997review}. The results of KNN algorithms are not inherently interpretable. When both K and the number of features in the dataset are small, visualizing the K-nearest neighbors can provide some sense of interpretability, but not a formal one.
+
+
+
+The interpretability of machine learning models lacks a precise mathematical definition. However, there are several non-mathematical definitions that have been proposed. One such definition, stated by Miller in \cite{miller2019explanation}, is that interpretability refers to "the degree to which a human can understand the cause of a decision". The researchers in \cite{dudyrev2022human} defined interpretable models as those for which humans can understand the causes of the model's predictions. 
+
+While interpretability may not be crucial in low-risk applications such as recommendation systems, it is of utmost importance in high-risk applications such as credit risk assessment and medical diagnosis. In such cases, it is essential to pair each prediction with the reason that led the model to make that prediction in order to avoid any possible errors. Despite the absence of a standardized metric for evaluating interpretability, models can be compared based on how easily humans can comprehend the reasons behind their decisions \cite{molnar2020interpretable}.
+
+
+Pattern structures, an extension of Formal Concept Analysis (FCA) introduced by Kuznetsov and Ganter \cite{ganter2001pattern}, expands on FCA by enabling the analysis of complex descriptors. Pattern structures, among other generalizations of FCA, have been widely adopted in diverse applications such as information retrieval, web and ontology engineering, biclustering and recommendation, databases and functional dependencies, and software engineering \cite{ferre2020formal}.
+
+Interval pattern structures, proposed in \cite{kuznetsov2013fitting}, are a special case of pattern structures in which the descriptors are numeric intervals. They enable the use of FCA-based knowledge discovery tools on numeric datasets \cite{ kaytoue2011mining}. To classify new instances, pattern structures can be used to extract hypotheses from a set of training instances \cite{kuznetsov2013scalable}. The original hypotheses-based lazy classification algorithm on pattern structures was proposed in \cite{ganter2003hypotheses}. This algorithm finds the similarity between a query instance and each instance in the training set, and considers a similarity to be a hypothesis only if it describes instances from a single class. The extracted hypotheses describe the characteristics that the new instance shares with a subset of instances from the training set, providing interpretability into the model's predictions.
+
+Although the original algorithm was proven effective on pattern structures with graph descriptors \cite{kuznetsov2013scalable}, it suffered from too specific hypotheses in the case of numeric features, especially when the number of features increased \cite{masyutin2015lazy}. Too specific hypotheses describe only few instances and do not convey much useful information for the classification process. To address this issue, \cite{masyutin2015lazy} proposed randomly sampling batches of instances from each class in the training set and finding the similarity between the query instance and the entire batch.
+
+
+Instead of attempting to solve the issues with the original hypotheses-based algorithm, this paper argues that augmenting the distance-weighted KNN with interval pattern structures can provide interpretability. As the nearest instances to the query instance carry the most useful information for classification, this approach focuses on leveraging this information, rather than relying on random batches from the train set.
+
+
+\section{Formal Definitions of Pattern Structures and Interval
+Pattern Structures}
+\subsection{Pattern Structures}
+Pattern structures are a generalization of Formal Concept Analysis (FCA). In FCA, a context is defined as a set of instances with binary features, where a binary relation specifies which features are possessed by each instance \cite{ganter2012formal}. Pattern structures remove the binary features condition and allow the use of any type of features as long as they form a lower semi-lattice. We follow \cite{ganter2001pattern} to provide a formal definition:
+Let $G$ be a set of instances, $(D, \sqcap)$ a lower semi-lattice of all possible instance descriptors, and $\delta:G \rightarrow D$ a mapping that corresponds each instance $g \in G$ with its descriptor $d \in D$. 
+
+Then $(G, \underline{D}, \delta)$ is called a \textit{pattern structure}, where $\underline{D}=(D, \sqcap)$, with the condition that the set $\delta(G):=\{ \delta(g)|g\in G\}$ generates a complete sub-semi-lattice $(D_\delta , \sqcap)$ from $(D, \sqcap)$, i.e. each subset $E$ of $\delta(G)$ has a meet $\sqcap E$ in $(D, \sqcap)$. 
+
+The elements of $D$ are called \textit{patterns} and are naturally ordered by the \textit{absorption} relation $\sqsubseteq$: for $c, d \in D$,  $c \sqsubseteq d \iff c \sqcap d = c$. The operation $\sqcap$ is also called the \textit{similarity operation}.
+
+The pattern structure $(G, \underline{D}, \delta)$ follows FCA and defines two \textit{derivative operators} $(.)^\diamond$ given in equations 1 and 2. The first of which is applied to a set of instances and returns the largest common pattern describing these instances, while the second is applied to a pattern and returns a set of instances that possess this pattern.
+\begin{equation}
+    A^\diamond = \sqcap_{g\in A}\delta(g) \;\;\;\; \text{for} \;\;\;A \subseteq G 
+\end{equation}
+\begin{equation}
+    d^\diamond = \{ g\in G | d \sqsubseteq \delta(g) \} \;\;\;\; \text{for} \;\;\; d \in (D, \sqcap)
+\end{equation}
+
+
+\subsection{Interval Pattern Structures}
+Interval pattern structures \cite{kuznetsov2013fitting, kaytoue2011mining} are a type of pattern structures in which the descriptors of the set $D$ are represented as $p$-dimensional vectors of intervals, with each interval corresponding to the value of one feature. Here, $p$ is the number of features being analyzed. Interval pattern structures can be used to represent numeric features, by considering each numeric value $x$ as a zero-length interval $[x, x]$. 
+
+Thus, the patterns of the set $D$ are $p-$dimensional vectors of intervals, where $p$ is the number of features. For the patterns $e = \langle[a_i, b_i]\rangle_{i=1, 2, .., p}$ and $f = \langle[c_i, d_i]\rangle_{i=1, 2, .., p}$ in $D$, the similarity of $e$ and $f$ is given by:
+
+\begin{equation}
+    e \sqcap f = \langle[a_i, b_i]\rangle_{i=1, 2, .., p} \sqcap \langle[c_i, d_i]\rangle_{i=1, 2, .., p} =\langle[min(a_i, c_i), max(b_i, d_i)]\rangle_{i=1, 2, .., p}
+\end{equation}
+
+The absorption relation $\sqsubseteq$ is given by:
+\begin{equation}
+  \begin{aligned}
+    e \sqsubseteq f & \iff \langle[a_i, b_i]\rangle_{i=1, 2, .., p} \sqsubseteq \langle[c_i, d_i]\rangle_{i=1, 2, .., p}\\
+      & \iff [a_i, b_i] \sqcap [c_i, d_i] = [a_i, b_i] \;\; \forall i \in \{ 1, 2, .., p\}\\
+  \end{aligned}
+\end{equation}
+
+Consequently, larger intervals are absorbed by the smaller intervals they contain. At first glance, this may seem counter-intuitive, but by definition, the similarity of a set of instances should be absorbed by the pattern of each instance in this set.
+
+
+\section{KNN-based Interval Pattern Structure Lazy Classifier}
+The original distance-weighted K-nearest neighbors (KNN) algorithm \cite{aha1991instance} classifies a query instance by finding its K-nearest neighbors and then computing a score for each class based on the inverse of the distance between the query instance and the instances from the K-nearest neighbors that belong to that class. However, the results of KNN algorithms are not inherently interpretable. To address this limitation, we propose IPS-KNN (Interval Pattern Structure K-Nearest Neighbor): an interpretable variant of the distance-weighted KNN algorithm that is based on interval pattern structures.
+
+
+\subsection{IPS-KNN Lazy Classifier}
+To classify a new instance $g_{\tau}$, the set $G_{knn}\subseteq G$ consisting of the $k$-nearest neighbors of $g_{\tau}$ in the training set $G$ is identified. The similarity of all instances in $G_{knn}$ is then calculated by applying the similarity operator $\sqcap$. All instances in the training set that are described by this similarity are included in a voting process. The class of $g_{\tau}$ is then determined by the function:
+\begin{equation}
+    y(g_{\tau}) = \operatorname{sgn}(s_{+} - s_{-})
+\end{equation}
+where the positive and negative scores, $s_{+}$ and $s_{-}$ respectively, are calculated as:
+\begin{equation}
+    s_{+} = \sum_{g_{+} \in G_{knn}^{\diamond \diamond} \cap G_{+}} \frac{1}{d(g_{+}, g_{\tau})} \label{eq:s+}
+\end{equation}
+\begin{equation}
+    s_{-} = \sum_{g_{-} \in G_{knn}^{\diamond \diamond} \cap G_{-}} \frac{1}{d(g_{-}, g_{\tau})} \label{eq:s-}
+\end{equation}
+
+Here, $d(a, b)$ is the Euclidean distance between instances $a$ and $b$ in the feature space. The set $G_{knn}^{\diamond \diamond}$ is the subset of $G$ that contains all instances described by the similarity $G_{knn}^{\diamond}$. 
+
+
+The proposed IPS-KNN algorithm differs from the original distance-weighted $k$-Nearest Neighbors in that, in IPS-KNN, the similarity of the $k$-Nearest Neighbors defines which instances will vote, while in KNN, only the $k$-nearest neighbors vote. The set of voters in IPS-KNN contains all the $k$-nearest neighbors because they are all described by their similarity, but it may include additional instances as well. 
+
+The difference in the set of voters between IPS-KNN and KNN is due to the geometric shape that encloses the neighbors in the feature space. In KNN, the distance between the query instance and the farthest instance of the $k$-Nearest Neighbors defines a hyper-sphere in the feature space, and all the instances located on its surface or inside it vote. On the other hand, the similarity of the $k$-Nearest Neighbors of the query instance defines a hyper-rectangle in the feature space in IPS-KNN. This hyper-rectangle is larger than the hyper-sphere of KNN and contains it entirely within its boundaries. Therefore, the set of voters in IPS-KNN may include more instances than just the $k$-Nearest Neighbors. 
+
+
+\subsection{IPS-KNN Interpretability}
+The similarity operation $\sqcap$ can reveal why a query instance was classified in a certain class, as it captures the similarity of descriptions. Suppose that a query instance $g_\tau$ was classified as positive by IPS-KNN. In this case, $G_{knn}(g_\tau)$ is the set of k-nearest instances to $g_\tau$ in the training set, and their common similarity determines the set of voters $V(g_\tau) = G_{knn}^{\diamond\diamond}(g_\tau)$, which can be split into positive voters $V_+$ and negative voters $V_-$. The negative score is then given by $s_- = \sum_{g_- \in V_-} \frac{1}{d(g_-, g_\tau)}$. Since $g_\tau$ was classified as positive, the positive score $s_+$ is greater than $s_-$. It is possible that only a subset of $V_+$ needs to vote to classify $g_\tau$ as positive; any subset of $V_+$ that produces a positive score greater than the negative score will lead to the same classification result.
+
+Formally, let $F = \{ E \; | \; E \subseteq V_+, \; \sum_{g_+ \in V_+} \frac{1}{d(g_+, g_\tau)} > s_-\}$ be the set of all subsets of $V_+(g_\tau)$ that give a positive score greater than $s_-$. The subset with the minimum number of instances includes the instances of $V_+$ closest to the query instance $g_\tau$. However, this subset is not necessarily unique, since multiple instances might have the same distance from the query instance. Let $E$ be the subset that correspond to the hyper-rectangle with minimum volume. The similarity of the elements of $E$ together with the description of the query instance is the reason for classifying $g_\tau$ as positive. This is given by $R = E^\diamond \sqcap \delta(g_\tau) \; : \; E \in F \;\; \text{and} \;\; |E| = \min {|B| : B \in F} \;\; \text{and} \;\; \Pi_{i=1}^{p}|b_i - a_i|_i$ is minimum, where $a_i$ and $b_i$ are the limits of the $i_{th}$ interval of $E^\diamond \sqcap \delta(g_\tau)$ and $p$ is the number of features. The reason for classification $R$ is itself a pattern in the interval pattern structure $(G, \underline{D}, \delta)$, consisting of a vector of intervals with one interval for each feature. The values of these intervals, relative to the original range of values of the features, provide interpretability. $R$ can also be considered a classifier that correctly classifies all instances of $E$ and the new instance $g_\tau$. It should be noted that substituting the subset $E$ with any other element in $F$ would provide another correct interpretable classifier. However, using $E$ corresponds to enclosing the classified instances in the most specific hyper-rectangle. On the other hand, using $V_+$ instead of $E$ will result in the most general hyper-rectangle.
+
+The interpretability provided by IPS-KNN is somewhat analogous to that provided by decision trees for continuous features. In IPS-KNN, the reason for classification is represented by a hyper-rectangle in the feature space, with one interval for each feature. Similarly, in decision trees, decisions are based on comparisons of feature values using greater than and less than conditions \cite{de2013decision}, which can also be represented as hyper-rectangles, with two exceptions. Firstly, decision trees may not use all features in the classification process, resulting in intervals of the form $(-\infty,+\infty)$. Secondly, decision trees may bound the values of some features from one side only, leading to intervals of the form $(-\infty,x)$ and $(x,+\infty)$, where $x$ is a real value. Section 4 further explains how these intervals are used for interpretability.
+
+\section{Experiments}
+The proposed algorithm IPS-KNN was evaluated against the baseline classification algorithms on the red wine quality dataset \footnote{\url{https://archive.ics.uci.edu/ml/datasets/wine+quality}}, which contains 11 numeric features and its output feature was binarized for this purpose. In its original form, the quality of each wine is assessed by a score between 1 and 10, where a higher score indicates better quality. To binarize the output feature, wines with a quality score in the range $[1,5]$ were considered 'bad', while those in the range $[6, 10]$ were considered 'good'. To assess the performance of the models, $20\%$ of the instances in the dataset were randomly selected as a holdout test set, and the remaining $80\%$ were used as the training set. In addition, 5-fold stratified cross-validation was used to evaluate the models and to tune their hyperparameters using a grid search approach. F1 score was used as the evaluation metric to take class imbalance into account. The accuracy and F1 scores on the held-out test set for the proposed algorithm, distance-weighted KNN, and other baseline classification algorithms are presented in Table \ref{table:performance}. The evaluation results indicate that the IPS-KNN algorithm and the distance-weighted KNN algorithm had similar performance. This suggests that our proposed modification to the KNN algorithm, which allows more instances to vote, did not significantly degrade performance. This is because the K nearest neighbors, which have the largest voting weight, are still included in the set of voters. Table \ref{table:performance} also shows that Random Forest and XGBoost outperformed IPS-KNN, with XGBoost achieving the highest F1 score with a $3.26\%$ increase over that of IPS-KNN. Both XGBoost and Random Forest use decision trees, which means that their results can be interpreted using the tests performed at the nodes along the paths through the structure used to classify a query instance. However, after grid search, the number of decision trees used by Random Forest and XGBoost was 100 and 1000, respectively. This large number of decision trees makes direct interpretability a difficult task.
+
+\begin{table}
+\centering
+    \caption{Accuracy and F1 for IPS-KNN and the baseline classification algorithms on the binarized red wine quality dataset.}
+    \label{table:performance}
+\begin{tabular}{lcc}
+    \toprule
+     \textbf{Classifier} & \textbf{Accuracy} & \textbf{F1} \\
+    \midrule
+    KNN & $82.81\%$ & $83.97\%$ \\
+    IPS-KNN & $81.56\%$ & $82.8\%$ \\
+    \midrule
+    Naive Bayes (GaussianNB) & $75\%$ & $76.05\%$ \\
+    Logistic Regression & $77.5\%$ & $78.44\%$ \\
+    SVM & $78.75\%$ & $80.68\%$ \\
+    Decision Tree & $77.5\%$ & $78.95\%$ \\
+    Random Forest & $84.06\%$ & $84.59\%$ \\
+    XGBoost & $84.69\%$ & $86.04\%$ \\
+    \bottomrule
+\end{tabular}
+\end{table}
+
+
+The following is an example of how IPS-KNN classifies a new instance and provides interpretability on the binary red wine quality dataset. Table \ref{table:example} shows the features of the red wine quality dataset, the values of these features for the query instance $g_\tau$, the ranges of the features, and the intervals of the reason of classification R. We obtained the value of the hyperparameter K of 25 through grid search. The similarity of 25-nearest instances to $g_\tau$ chose 44 instances to vote, 38 of which are positive and the remaining 6 are negative. The resulting positive and negative scores were $s_+ = 19.3$ and $s_-=2.6$; therefore, $g_\tau$ was classified as positive. 
+
+Out of the 38 positive instances, the nearest 4 were enough to give a positive score larger than the negative one. The similarity of these 4 objects together with $g_\tau$ produced the reason of classification denoted by R in Table \ref{table:example}. The intervals of $R$ provide the interpretability of why $g_\tau$ was classified as positive and what values should the features of instances similar to $g_\tau$ also have in order to be classified as positive.
+
+\begin{table}
+\centering
+    \caption{Ranges of data set feature values (red wine quality) and interval classifier intervals.}
+    \label{table:example}
+    \begin{tabular}{cccc}
+    \toprule
+     \textbf{Feature} & \textbf{Feature values of $g_\tau$} & \textbf{Range of values} & \textbf{Reason of classification R} \\
+    \midrule
+    Fixed acidity & $6.3$ & $[4.6, 15.9]$ & $[6.3, 6.8]$\\
+    Volatile acidity & $0.55$ & $[0.1, 1.6]$ & $[0.49, 0.67]$\\
+    Citric acid & $0.15$ & $[0, 1]$ & [$0.02, 0.22]$\\
+    Residual sugar & $1.8$ & $[0.9, 15.5]$ & $[1.8, 2.3]$\\
+    Chlorides & $0.077$ & $[0.01, 0.61]$ & $[0.061, 0.077]$\\
+    Free sulfur dioxide & $26$ & $[1, 72]$ & $[13.0, 37.0]$\\
+    Total sulfur dioxide & $35$ & $[6, 289]$ & $[24.0, 53.0]$\\
+    Density & $0.99314$ & $[0.99, 1.004]$ & $[0.99314, 0.99489]$\\
+    pH & $3.32$ & $[2.7, 4]$ & $[3.32, 3.41]$\\
+    Sulfates & $0.82$ & $[0.3, 2]$ & $[0.76, 0.83]$\\
+    Alcohol & $11.63$ & $[8.4, 14.9]$ & $[10.3, 11.6]$\\
+    \bottomrule
+\end{tabular}
+\end{table}
+
+For example, the interval $[6.3, 6.8]$ of $R$ corresponding to the feature (fixed acidity) shows that this feature's value should be low relative to the original range of values in order to the classification result to be positive. The interval corresponding to the feature (alcohol) shows that the value of this feature should be in in the middle of the range of possible values. The intervals corresponding to the features (fixed acidity, residual sugar, sulphates) are short relative to the ranges of their values, which mean that they are important to the classification process. In contrast, intervals covering a large part of the entire range of values are less useful since they describe almost all objects in the dataset.
+
+\section{Conclusion}
+Based on the results of the experiments, we can conclude that the IPS-KNN algorithm performs similarly to the distance-weighted KNN algorithm in terms of classification performance. However, the IPS-KNN algorithm provides additional interpretability through the reason for the classification in the form of a pattern of an interval pattern structure. The intervals in the reason for classification provide insights into which features are important for the classification task and what values these features should have in order to produce a specific classification result.
+
+The proposed algorithm can be used in applications where interpretability is important, such as in medical diagnosis or credit risk assessment. The interpretability provided by IPS-KNN can help experts understand why a certain decision was made, which can lead to better decision making and increased trust in the system. 
+
+
+\section{Future Work}
+One limitation of the IPS-KNN algorithm is that the hyper-rectangle surrounding the query instance and its neighbors is currently aligned with the coordinate axes in the feature space. To address this limitation, we plan to investigate the introduction of a tilted hyper-rectangle in future work. By tilting the hyper-rectangle at an angle, we aim to provide better separation of the voters and potentially improve classification accuracy.
+
+Introducing a tilted hyper-rectangle is a promising avenue for future research that could enhance the performance of the IPS-KNN algorithm. However, it is important to conduct more detailed investigation to explore the feasibility and potential benefits of this approach. Specifically, we need to determine the optimal angle of tilt and evaluate the impact of tilted hyper-rectangle is a promising avenue for future research that could enhance the performance of the IPS-KNN algorithm. However, it is important to conduct more detailed investigation to explore the feasibility and potential benefits of this approach. Specifically, we need to determine the optimal angle of tilt and evaluate the impact of this approach on classification accuracy compared to the current IPS-KNN algorithm.
+
+\bibliography{mybib}
+
+\end{document}

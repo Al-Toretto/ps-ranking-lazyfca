@@ -15,7 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-os.environ.setdefault("MPLCONFIGDIR", "/tmp/osda_lazyfca_matplotlib")
+os.environ.setdefault("MPLCONFIGDIR", "/tmp/ranked_lazyfca_matplotlib")
 
 try:
     import yaml
@@ -43,10 +43,52 @@ except ModuleNotFoundError as exc:  # pragma: no cover - depends on local env
         ) from exc
     raise
 
+from baselines.interval_lazy_methods import FCalcBaseline
+from baselines.interval_lazy_methods import IPSKNNBaseline
+
 
 PRIMARY_METRIC = "primary_f1"
+PRIMARY_METRIC_LABEL = "macro-F1"
 VANILLA_METRIC = "all"
 RANDOM_METRIC = "random"
+BASELINE_METRIC = "baseline"
+CURRENT_VANILLA_METHOD = "current_vanilla_lazyfca"
+LEGACY_VANILLA_METHOD = "vanilla_lazyfca"
+BASELINE_METHODS = {"fcalc_deterministic", "fcalc_randomized", "ips_knn"}
+LAZY_METHODS = {CURRENT_VANILLA_METHOD, LEGACY_VANILLA_METHOD, "global_topk", "random_topk"}
+
+T_CRITICAL_95 = {
+    1: 12.706,
+    2: 4.303,
+    3: 3.182,
+    4: 2.776,
+    5: 2.571,
+    6: 2.447,
+    7: 2.365,
+    8: 2.306,
+    9: 2.262,
+    10: 2.228,
+    11: 2.201,
+    12: 2.179,
+    13: 2.160,
+    14: 2.145,
+    15: 2.131,
+    16: 2.120,
+    17: 2.110,
+    18: 2.101,
+    19: 2.093,
+    20: 2.086,
+    21: 2.080,
+    22: 2.074,
+    23: 2.069,
+    24: 2.064,
+    25: 2.060,
+    26: 2.056,
+    27: 2.052,
+    28: 2.048,
+    29: 2.045,
+    30: 2.042,
+}
 
 
 @dataclasses.dataclass(frozen=True)
@@ -76,6 +118,10 @@ def enabled_names(section: dict) -> list[str]:
         if enabled:
             names.append(name)
     return names
+
+
+def configured_names(section: dict) -> list[str]:
+    return list(section)
 
 
 def selected_names(config_names: list[str], cli_names: typing.Optional[list[str]]) -> list[str]:
@@ -220,6 +266,7 @@ def prepare_dataset(config: dict, spec: DatasetSpec, seed: int) -> dict:
         "seed": seed,
         "test_size": float(config["test_size"]),
         "model": model,
+        "X_train": data["X_train"],
         "X_test": data["X_test"],
         "X_train_shape": tuple(data["X_train"].shape),
         "X_test_shape": tuple(data["X_test"].shape),
@@ -319,30 +366,68 @@ def predict_from_retained(
     return pred, proba, counts, score_sums
 
 
+def safe_divide(numerator: float, denominator: float) -> float:
+    return float(numerator / denominator) if denominator else 0.0
+
+
+def one_vs_rest_scores(y_true: np.ndarray, y_pred: np.ndarray, label: int) -> tuple[float, float, float, int, int, int]:
+    tp = int(((y_true == label) & (y_pred == label)).sum())
+    fp = int(((y_true != label) & (y_pred == label)).sum())
+    fn = int(((y_true == label) & (y_pred != label)).sum())
+    precision = safe_divide(tp, tp + fp)
+    recall = safe_divide(tp, tp + fn)
+    f1 = safe_divide(2.0 * precision * recall, precision + recall)
+    return precision, recall, f1, tp, fp, fn
+
+
+def classification_scores(y_true: np.ndarray, y_pred: np.ndarray, n_classes: int) -> dict[str, float]:
+    per_class = [one_vs_rest_scores(y_true, y_pred, label) for label in range(n_classes)]
+    supports = np.bincount(y_true, minlength=n_classes).astype(float)
+    f1_values = np.asarray([row[2] for row in per_class], dtype=float)
+    precision_values = np.asarray([row[0] for row in per_class], dtype=float)
+    recall_values = np.asarray([row[1] for row in per_class], dtype=float)
+    macro_f1 = float(f1_values.mean()) if len(f1_values) else 0.0
+    weighted_f1 = safe_divide(float((f1_values * supports).sum()), float(supports.sum()))
+    precision = float(precision_values.mean()) if len(precision_values) else 0.0
+    recall = float(recall_values.mean()) if len(recall_values) else 0.0
+    primary_f1 = macro_f1
+    return {
+        "precision": precision,
+        "recall": recall,
+        "primary_f1": primary_f1,
+        "macro_f1": macro_f1,
+        "weighted_f1": weighted_f1,
+    }
+
+
+def prediction_score_matrix(y_pred: np.ndarray, n_classes: int) -> np.ndarray:
+    scores = np.zeros((len(y_pred), n_classes), dtype=float)
+    for row_index, label in enumerate(y_pred):
+        if 0 <= int(label) < n_classes:
+            scores[row_index, int(label)] = 1.0
+    return scores
+
+
 def metric_row(
     *,
     dataset: str,
     seed: int,
     method: str,
     metric: str,
-    k: int,
+    k: typing.Optional[int],
     y_true: np.ndarray,
     y_pred: np.ndarray,
     y_score: np.ndarray,
     total_available_mean: float,
     retained_mean: float,
     repeat: typing.Optional[int] = None,
+    extra: typing.Optional[dict] = None,
 ) -> dict:
     n_classes = y_score.shape[1]
     labels = list(range(n_classes))
-    average = "binary" if n_classes == 2 else "macro"
-    weighted_f1 = sklearn.metrics.f1_score(y_true, y_pred, labels=labels, average="weighted", zero_division=0)
-    macro_f1 = sklearn.metrics.f1_score(y_true, y_pred, labels=labels, average="macro", zero_division=0)
-    primary_f1 = (
-        sklearn.metrics.f1_score(y_true, y_pred, average="binary", zero_division=0)
-        if n_classes == 2
-        else macro_f1
-    )
+    y_true = np.asarray(y_true, dtype=int)
+    y_pred = np.asarray(y_pred, dtype=int)
+    scores = classification_scores(y_true, y_pred, n_classes)
     try:
         auc = (
             sklearn.metrics.roc_auc_score(y_true, y_score[:, 1])
@@ -358,36 +443,46 @@ def metric_row(
         "seed": seed,
         "method": method,
         "metric": metric,
-        "k": int(k),
+        "k": None if k is None or pd.isna(k) else int(k),
         "repeat": repeat,
         "accuracy": sklearn.metrics.accuracy_score(y_true, y_pred),
-        "precision": sklearn.metrics.precision_score(y_true, y_pred, labels=labels, average=average, zero_division=0),
-        "recall": sklearn.metrics.recall_score(y_true, y_pred, labels=labels, average=average, zero_division=0),
-        "primary_f1": primary_f1,
-        "macro_f1": macro_f1,
-        "weighted_f1": weighted_f1,
+        "precision": scores["precision"],
+        "recall": scores["recall"],
+        "primary_f1": scores["primary_f1"],
+        "macro_f1": scores["macro_f1"],
+        "weighted_f1": scores["weighted_f1"],
         "auc_roc": auc,
         "total_available_mean": total_available_mean,
         "retained_mean": retained_mean,
         "compression_ratio": retained_mean / total_available_mean if total_available_mean else float("nan"),
         "confusion_matrix": json.dumps(confusion.tolist()),
+        "invalid_prediction_count": int((~np.isin(y_pred, labels)).sum()),
     }
     if n_classes == 2:
-        tn, fp, fn, tp = confusion.ravel()
+        _precision, _recall, _f1, tp, fp, fn = one_vs_rest_scores(y_true, y_pred, 1)
+        tn = int(((y_true == 0) & (y_pred == 0)).sum())
         row.update({"true_positive": int(tp), "true_negative": int(tn), "false_positive": int(fp), "false_negative": int(fn)})
+    if extra:
+        row.update(extra)
     return row
 
 
 def enabled_work(run_dir: Path, dataset: str, seed: int, methods: list[str], metrics: list[str], force: bool) -> dict:
-    work = {"vanilla": False, "global_metrics": [], "random": False}
-    if "vanilla_lazyfca" in methods:
-        path = chunk_path(run_dir, dataset, seed, "vanilla_lazyfca", VANILLA_METRIC)
+    work = {"vanilla": False, "vanilla_method": None, "global_metrics": [], "random": False, "baselines": []}
+    vanilla_method = None
+    if CURRENT_VANILLA_METHOD in methods:
+        vanilla_method = CURRENT_VANILLA_METHOD
+    elif LEGACY_VANILLA_METHOD in methods:
+        vanilla_method = LEGACY_VANILLA_METHOD
+    if vanilla_method is not None:
+        path = chunk_path(run_dir, dataset, seed, vanilla_method, VANILLA_METRIC)
         if force or not path.exists():
             work["vanilla"] = True
+            work["vanilla_method"] = vanilla_method
         else:
             append_manifest(
                 run_dir,
-                {"type": "chunk", "status": "skipped_existing", "dataset": dataset, "seed": seed, "method": "vanilla_lazyfca", "metric": VANILLA_METRIC},
+                {"type": "chunk", "status": "skipped_existing", "dataset": dataset, "seed": seed, "method": vanilla_method, "metric": VANILLA_METRIC},
             )
 
     if "global_topk" in methods:
@@ -410,11 +505,25 @@ def enabled_work(run_dir: Path, dataset: str, seed: int, methods: list[str], met
                 run_dir,
                 {"type": "chunk", "status": "skipped_existing", "dataset": dataset, "seed": seed, "method": "random_topk", "metric": RANDOM_METRIC},
             )
+
+    for method in sorted(BASELINE_METHODS.intersection(methods)):
+        path = chunk_path(run_dir, dataset, seed, method, BASELINE_METRIC)
+        if force or not path.exists():
+            work["baselines"].append(method)
+        else:
+            append_manifest(
+                run_dir,
+                {"type": "chunk", "status": "skipped_existing", "dataset": dataset, "seed": seed, "method": method, "metric": BASELINE_METRIC},
+            )
     return work
 
 
 def no_work(work: dict) -> bool:
-    return not work["vanilla"] and not work["global_metrics"] and not work["random"]
+    return not has_lazy_work(work) and not work["baselines"]
+
+
+def has_lazy_work(work: dict) -> bool:
+    return bool(work["vanilla"] or work["global_metrics"] or work["random"])
 
 
 def make_prediction_store(
@@ -425,7 +534,12 @@ def make_prediction_store(
 ) -> dict[tuple[str, str, int, typing.Optional[int]], dict[str, list]]:
     store = {}
     if work["vanilla"]:
-        store[("vanilla_lazyfca", VANILLA_METRIC, full_k, None)] = {"pred": [], "score": [], "retained": [], "available": []}
+        store[(work["vanilla_method"], VANILLA_METRIC, full_k, None)] = {
+            "pred": [],
+            "score": [],
+            "retained": [],
+            "available": [],
+        }
     for metric in work["global_metrics"]:
         for k in k_values:
             store[("global_topk", metric, k, None)] = {"pred": [], "score": [], "retained": [], "available": []}
@@ -510,7 +624,13 @@ def stream_evaluate_chunks(
             counts = np.asarray([len(classifiers) for classifiers in explanation.class_classifiers], dtype=float)
             pred = choose_class(counts, counts.copy(), priors)
             proba = counts / counts.sum() if counts.sum() > 0 else priors.copy()
-            add_prediction(store[("vanilla_lazyfca", VANILLA_METRIC, full_k, None)], pred, proba, int(counts.sum()), available)
+            add_prediction(
+                store[(work["vanilla_method"], VANILLA_METRIC, full_k, None)],
+                pred,
+                proba,
+                int(counts.sum()),
+                available,
+            )
 
         for metric in work["global_metrics"]:
             ranked = ranked_classifiers(explanation, metric)
@@ -568,6 +688,136 @@ def stream_evaluate_chunks(
     return build_streaming_diagnostics(payload, diagnostic)
 
 
+def method_options(config: dict, method: str) -> dict:
+    raw = config.get("methods", {}).get(method, {}) or {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def build_baseline(method: str, options: dict, seed: int, smoke: bool):
+    if method == "fcalc_deterministic":
+        return FCalcBaseline(
+            randomized=False,
+            scaler=options.get("scaler", "minmax"),
+            tune_aggregation=bool(options.get("tune_aggregation", True)),
+            families=list(options.get("families", ["standard", "proximity"])),
+            family=options.get("family", "standard"),
+            aggregation=options.get("aggregation", "standard-support"),
+            seed=seed,
+            cv_seed=int(options.get("cv_seed", 1998)),
+        )
+    if method == "fcalc_randomized":
+        num_iters_grid = list(options.get("num_iters_grid", [10, 20, 30, 40, 50]))
+        subsample_size_grid = list(options.get("subsample_size_grid", list(range(1, 11))))
+        if smoke:
+            num_iters_grid = num_iters_grid[:1]
+            subsample_size_grid = subsample_size_grid[:2]
+        return FCalcBaseline(
+            randomized=True,
+            scaler=options.get("scaler", "minmax"),
+            tune_aggregation=bool(options.get("tune_aggregation", True)),
+            families=list(options.get("families", ["standard", "proximity"])),
+            family=options.get("family", "standard"),
+            aggregation=options.get("aggregation", "standard-support"),
+            num_iters=int(options.get("num_iters", 20)),
+            subsample_size=int(options.get("subsample_size", 5)),
+            num_iters_grid=num_iters_grid,
+            subsample_size_grid=subsample_size_grid,
+            seed=seed,
+            cv_seed=int(options.get("cv_seed", 1998)),
+        )
+    if method == "ips_knn":
+        return IPSKNNBaseline(
+            scaler=options.get("scaler", "standard"),
+            tune_k=bool(options.get("tune_k", True)),
+            k_values=list(options.get("k_values", [1, 3, 5, 7, 9, 15, 25, 51])),
+            k=int(options.get("k", 3)),
+            p=int(options.get("p", 2)),
+            weights=options.get("weights", "distance"),
+            seed=seed,
+            cv_seed=int(options.get("cv_seed", 1998)),
+        )
+    raise ValueError(f"Unknown baseline method: {method}")
+
+
+def run_baseline_chunks(
+    run_dir: Path,
+    config: dict,
+    payload: dict,
+    work: dict,
+    *,
+    smoke: bool,
+) -> None:
+    dataset = payload["dataset"]
+    seed = int(payload["seed"])
+    y_true = np.asarray(payload["y_test"], dtype=int)
+    n_classes = int(payload["n_classes"])
+
+    for method in work["baselines"]:
+        options = method_options(config, method)
+        if bool(options.get("numeric_only", False)) and int(payload["categorical_feature_count"]) > 0:
+            append_manifest(
+                run_dir,
+                {
+                    "type": "chunk",
+                    "status": "skipped_numeric_only",
+                    "dataset": dataset,
+                    "seed": seed,
+                    "method": method,
+                    "metric": BASELINE_METRIC,
+                    "categorical_feature_count": int(payload["categorical_feature_count"]),
+                },
+            )
+            print(f"[skip]  {dataset} seed={seed}: {method} is numeric-only", flush=True)
+            continue
+
+        started = time.time()
+        baseline = build_baseline(method, options, seed=seed, smoke=smoke)
+        baseline.fit(payload["X_train"], payload["y_train"])
+        y_pred = np.asarray(baseline.predict(payload["X_test"]), dtype=int)
+        y_score = prediction_score_matrix(y_pred, n_classes)
+        timings = baseline.get_timings()
+        compactness = baseline.get_compactness()
+        invalid_count = int((~np.isin(y_pred, list(range(n_classes)))).sum())
+        extra = {
+            "selected_params": json.dumps(baseline.get_params_used(), sort_keys=True),
+            "runtime_seconds": round(time.time() - started, 6),
+            "fit_seconds": timings.get("fit_seconds", 0.0),
+            "predict_seconds": timings.get("predict_seconds", 0.0),
+            "unclassified_count": invalid_count,
+            "unclassified_rate": invalid_count / len(y_pred) if len(y_pred) else float("nan"),
+            **compactness,
+        }
+        row = metric_row(
+            dataset=dataset,
+            seed=seed,
+            method=method,
+            metric=BASELINE_METRIC,
+            k=None,
+            repeat=None,
+            y_true=y_true,
+            y_pred=y_pred,
+            y_score=y_score,
+            total_available_mean=float("nan"),
+            retained_mean=float("nan"),
+            extra=extra,
+        )
+        path = chunk_path(run_dir, dataset, seed, method, BASELINE_METRIC)
+        write_chunk(path, pd.DataFrame([row]))
+        append_manifest(
+            run_dir,
+            {
+                "type": "chunk",
+                "status": "completed",
+                "dataset": dataset,
+                "seed": seed,
+                "method": method,
+                "metric": BASELINE_METRIC,
+                "rows": 1,
+                "path": str(path.relative_to(run_dir)),
+            },
+        )
+
+
 def write_chunk(path: Path, df: pd.DataFrame) -> None:
     tmp = path.with_suffix(".tmp")
     df.to_csv(tmp, index=False)
@@ -607,42 +857,87 @@ def combine_diagnostics(run_dir: Path) -> pd.DataFrame:
     )
 
 
+def ci95_half_width(values: pd.Series) -> float:
+    clean = pd.to_numeric(values, errors="coerce").dropna()
+    n = int(clean.shape[0])
+    if n <= 1:
+        return 0.0
+    df = n - 1
+    t_value = T_CRITICAL_95.get(df, 1.96)
+    return float(t_value * clean.std(ddof=1) / math.sqrt(n))
+
+
 def summarize_results(results: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     if results.empty:
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-    vanilla = results[results["method"] == "vanilla_lazyfca"].copy()
-    topk = results[results["method"] != "vanilla_lazyfca"].copy()
+    vanilla = results[results["method"].isin([CURRENT_VANILLA_METHOD, LEGACY_VANILLA_METHOD])].copy()
+    topk = results[~results["method"].isin([CURRENT_VANILLA_METHOD, LEGACY_VANILLA_METHOD])].copy()
     group_cols = ["dataset", "method", "metric", "k"]
-    summary = (
-        topk.groupby(group_cols, dropna=False)
-        .agg(
-            primary_f1_mean=(PRIMARY_METRIC, "mean"),
-            primary_f1_std=(PRIMARY_METRIC, "std"),
-            accuracy_mean=("accuracy", "mean"),
-            macro_f1_mean=("macro_f1", "mean"),
-            weighted_f1_mean=("weighted_f1", "mean"),
-            retained_mean=("retained_mean", "mean"),
-            compression_ratio_mean=("compression_ratio", "mean"),
-            runs=("primary_f1", "count"),
+    if topk.empty:
+        summary = pd.DataFrame()
+    else:
+        seed_level = (
+            topk.groupby([*group_cols, "seed"], dropna=False)
+            .agg(
+                primary_f1=(PRIMARY_METRIC, "mean"),
+                accuracy=("accuracy", "mean"),
+                macro_f1=("macro_f1", "mean"),
+                weighted_f1=("weighted_f1", "mean"),
+                retained_mean=("retained_mean", "mean"),
+                compression_ratio=("compression_ratio", "mean"),
+                repeat_rows=("primary_f1", "count"),
+            )
+            .reset_index()
         )
-        .reset_index()
-    )
+        rows = []
+        for keys, df in seed_level.groupby(group_cols, dropna=False):
+            if not isinstance(keys, tuple):
+                keys = (keys,)
+            row = dict(zip(group_cols, keys))
+            for source, prefix in [
+                ("primary_f1", "primary_f1"),
+                ("accuracy", "accuracy"),
+                ("macro_f1", "macro_f1"),
+                ("weighted_f1", "weighted_f1"),
+                ("retained_mean", "retained"),
+                ("compression_ratio", "compression_ratio"),
+            ]:
+                row[f"{prefix}_mean"] = float(df[source].mean())
+                row[f"{prefix}_std"] = float(df[source].std(ddof=1)) if len(df) > 1 else 0.0
+                row[f"{prefix}_ci95"] = ci95_half_width(df[source])
+            row["runs"] = int(df["seed"].nunique())
+            row["repeat_rows"] = int(df["repeat_rows"].sum())
+            rows.append(row)
+        summary = pd.DataFrame(rows).sort_values(group_cols).reset_index(drop=True)
+
+    if summary.empty:
+        return vanilla, summary, pd.DataFrame()
 
     compact_rows = []
     for (dataset, method, metric), df in summary.groupby(["dataset", "method", "metric"], dropna=False):
         df = df.sort_values("k")
         best_idx = df["primary_f1_mean"].idxmax()
         best = df.loc[best_idx]
+        best_k = None if pd.isna(best["k"]) else int(best["k"])
         row = {
             "dataset": dataset,
             "method": method,
             "metric": metric,
-            "best_k": int(best["k"]),
+            "best_k": best_k,
             "best_primary_f1_mean": float(best["primary_f1_mean"]),
+            "best_primary_f1_ci95": float(best.get("primary_f1_ci95", 0.0)),
             "best_retained_mean": float(best["retained_mean"]),
+            "best_retained_ci95": float(best.get("retained_ci95", 0.0)),
             "best_compression_ratio_mean": float(best["compression_ratio_mean"]),
+            "best_compression_ratio_ci95": float(best.get("compression_ratio_ci95", 0.0)),
         }
+        if best_k is None:
+            for pct in [1, 3, 5]:
+                row[f"smallest_k_within_{pct}pct"] = np.nan
+                row[f"primary_f1_within_{pct}pct"] = float(best["primary_f1_mean"])
+            compact_rows.append(row)
+            continue
         for pct in [1, 3, 5]:
             threshold = row["best_primary_f1_mean"] * (1.0 - pct / 100.0)
             eligible = df[df["primary_f1_mean"] >= threshold].sort_values("k")
@@ -670,7 +965,10 @@ def write_plots(run_dir: Path, summary: pd.DataFrame, vanilla: pd.DataFrame) -> 
         for (method, metric), sub in df.groupby(["method", "metric"], dropna=False):
             sub = sub.sort_values("k")
             label = f"{method}:{metric}"
-            ax.plot(sub["k"], sub["primary_f1_mean"], marker="o", linewidth=1.5, markersize=3, label=label)
+            if sub["k"].notna().any():
+                ax.plot(sub["k"], sub["primary_f1_mean"], marker="o", linewidth=1.5, markersize=3, label=label)
+            else:
+                ax.axhline(sub["primary_f1_mean"].mean(), linestyle=":", linewidth=1.2, label=label)
         vanilla_sub = vanilla[vanilla["dataset"] == dataset]
         if not vanilla_sub.empty:
             ax.axhline(
@@ -682,7 +980,7 @@ def write_plots(run_dir: Path, summary: pd.DataFrame, vanilla: pd.DataFrame) -> 
             )
         ax.set_xscale("log")
         ax.set_xlabel("k retained classifiers")
-        ax.set_ylabel("primary F1")
+        ax.set_ylabel(PRIMARY_METRIC_LABEL)
         ax.set_title(f"{dataset}: compactness-first top-k ranking")
         ax.grid(True, alpha=0.25)
         ax.legend(fontsize=7, ncol=2)
@@ -695,18 +993,22 @@ def write_plots(run_dir: Path, summary: pd.DataFrame, vanilla: pd.DataFrame) -> 
         for (method, metric), sub in df.groupby(["method", "metric"], dropna=False):
             sub = sub.sort_values("k")
             fig, ax = plt.subplots(figsize=(7, 4.5))
-            ax.plot(
-                sub["k"],
-                sub["primary_f1_mean"],
-                marker="o",
-                linewidth=1.8,
-                markersize=3.5,
-                label=f"{method}:{metric}",
-            )
-            if "primary_f1_std" in sub and sub["primary_f1_std"].notna().any():
-                lower = sub["primary_f1_mean"] - sub["primary_f1_std"].fillna(0.0)
-                upper = sub["primary_f1_mean"] + sub["primary_f1_std"].fillna(0.0)
-                ax.fill_between(sub["k"], lower, upper, alpha=0.15)
+            if sub["k"].notna().any():
+                ax.plot(
+                    sub["k"],
+                    sub["primary_f1_mean"],
+                    marker="o",
+                    linewidth=1.8,
+                    markersize=3.5,
+                    label=f"{method}:{metric}",
+                )
+            else:
+                ax.axhline(sub["primary_f1_mean"].mean(), linestyle=":", linewidth=1.8, label=f"{method}:{metric}")
+            if "primary_f1_ci95" in sub and sub["primary_f1_ci95"].notna().any():
+                lower = sub["primary_f1_mean"] - sub["primary_f1_ci95"].fillna(0.0)
+                upper = sub["primary_f1_mean"] + sub["primary_f1_ci95"].fillna(0.0)
+                if sub["k"].notna().any():
+                    ax.fill_between(sub["k"], lower, upper, alpha=0.15)
             if vanilla_f1 is not None:
                 ax.axhline(
                     vanilla_f1,
@@ -715,9 +1017,10 @@ def write_plots(run_dir: Path, summary: pd.DataFrame, vanilla: pd.DataFrame) -> 
                     linewidth=1.2,
                     label="vanilla LazyFCA",
                 )
-            ax.set_xscale("log")
+            if sub["k"].notna().any():
+                ax.set_xscale("log")
             ax.set_xlabel("k retained classifiers")
-            ax.set_ylabel("primary F1")
+            ax.set_ylabel(PRIMARY_METRIC_LABEL)
             ax.set_title(f"{dataset}: {method}:{metric}")
             ax.grid(True, alpha=0.25)
             ax.legend(fontsize=8)
@@ -727,8 +1030,8 @@ def write_plots(run_dir: Path, summary: pd.DataFrame, vanilla: pd.DataFrame) -> 
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run incremental paper experiments for ranked LazyFCA.")
-    parser.add_argument("--config", default="paper_experiments/config.yaml")
+    parser = argparse.ArgumentParser(description="Run incremental experiments for ranked LazyFCA.")
+    parser.add_argument("--config", default="experiments/config.yaml")
     parser.add_argument("--run-name", default=None)
     parser.add_argument("--datasets", nargs="*", default=None)
     parser.add_argument("--metrics", nargs="*", default=None)
@@ -752,7 +1055,7 @@ def main() -> None:
         config = {**config, "seeds": [0], "run_name": "smoke"}
 
     run_name = args.run_name or config.get("run_name", "default")
-    output_dir = ROOT / config.get("output_dir", "paper_experiments/results")
+    output_dir = ROOT / config.get("output_dir", "experiments/results")
     run_dir = output_dir / run_name
     for subdir in ["chunks", "diagnostics", "plots"]:
         (run_dir / subdir).mkdir(parents=True, exist_ok=True)
@@ -762,7 +1065,12 @@ def main() -> None:
     unknown_metrics = sorted(set(metric_names).difference(METADATA_DICT))
     if unknown_metrics:
         raise ValueError(f"Unknown LazyFCA metric names in config/CLI: {unknown_metrics}")
-    method_names = selected_names(enabled_names(config["methods"]), args.methods)
+    method_config_names = configured_names(config["methods"])
+    method_names = (
+        selected_names(method_config_names, args.methods)
+        if args.methods
+        else enabled_names(config["methods"])
+    )
     seeds = args.seeds if args.seeds is not None else list(config.get("seeds", [0, 1, 2, 3, 4]))
     force = bool(args.force or config.get("force", False))
     random_repeats = int(config.get("random_topk_repeats", 5))
@@ -782,6 +1090,7 @@ def main() -> None:
             "test_size": config.get("test_size"),
             "k_grid": config.get("k_grid"),
             "random_topk_repeats": random_repeats,
+            "method_options": {name: method_options(config, name) for name in method_names},
         }
     )
     append_manifest(
@@ -806,27 +1115,38 @@ def main() -> None:
             payload = prepare_dataset(config, spec, seed)
             full_k = len(payload["y_train"])
             k_values = k_values_from_config(config.get("k_grid", {}), full_k=full_k, smoke=bool(args.smoke))
+            lazy_methods_selected = bool(set(method_names).intersection(LAZY_METHODS))
             diagnostics_missing = force or not diagnostic_path(run_dir, spec.name, seed).exists()
-            if no_work(work) and not diagnostics_missing:
+            diagnostic_required = diagnostics_missing and lazy_methods_selected
+            if no_work(work) and not diagnostic_required:
                 print(f"[skip]  {spec.name} seed={seed}: all chunks already exist", flush=True)
                 continue
 
             started = time.time()
-            mode = "diagnostic" if no_work(work) else "stream"
-            print(
-                f"[{mode}] {spec.name} seed={seed} "
-                f"metrics={len(work['global_metrics'])} k={len(k_values)}",
-                flush=True,
-            )
-            diagnostic = stream_evaluate_chunks(
-                run_dir,
-                payload,
-                work=work,
-                k_values=k_values,
-                random_repeats=random_repeats,
-            )
-            write_diagnostic(run_dir, diagnostic)
-            diagnostics.append(diagnostic)
+            if has_lazy_work(work) or diagnostic_required:
+                mode = "diagnostic" if not has_lazy_work(work) else "stream"
+                print(
+                    f"[{mode}] {spec.name} seed={seed} "
+                    f"metrics={len(work['global_metrics'])} k={len(k_values)}",
+                    flush=True,
+                )
+                diagnostic = stream_evaluate_chunks(
+                    run_dir,
+                    payload,
+                    work=work,
+                    k_values=k_values,
+                    random_repeats=random_repeats,
+                )
+                write_diagnostic(run_dir, diagnostic)
+                diagnostics.append(diagnostic)
+
+            if work["baselines"]:
+                print(
+                    f"[baseline] {spec.name} seed={seed} methods={','.join(work['baselines'])}",
+                    flush=True,
+                )
+                run_baseline_chunks(run_dir, config, payload, work, smoke=bool(args.smoke))
+
             append_manifest(
                 run_dir,
                 {
@@ -835,8 +1155,9 @@ def main() -> None:
                     "dataset": spec.name,
                     "seed": seed,
                     "seconds": round(time.time() - started, 3),
-                    "streaming": True,
-                    "diagnostics_only": bool(no_work(work)),
+                    "streaming": bool(has_lazy_work(work) or diagnostic_required),
+                    "diagnostics_only": bool(diagnostic_required and not has_lazy_work(work)),
+                    "baseline_methods": work["baselines"],
                 },
             )
 
@@ -849,6 +1170,7 @@ def main() -> None:
         results.to_csv(run_dir / "topk_results.csv", index=False)
         vanilla, summary, compact = summarize_results(results)
         vanilla.to_csv(run_dir / "vanilla_lazyfca.csv", index=False)
+        results[results["method"].isin(BASELINE_METHODS)].to_csv(run_dir / "baseline_results.csv", index=False)
         summary.to_csv(run_dir / "summary_by_dataset_metric.csv", index=False)
         plot_columns = [
             "dataset",
@@ -857,12 +1179,19 @@ def main() -> None:
             "k",
             "primary_f1_mean",
             "primary_f1_std",
+            "primary_f1_ci95",
             "accuracy_mean",
+            "accuracy_ci95",
             "macro_f1_mean",
+            "macro_f1_ci95",
             "weighted_f1_mean",
+            "weighted_f1_ci95",
             "retained_mean",
+            "retained_ci95",
             "compression_ratio_mean",
+            "compression_ratio_ci95",
             "runs",
+            "repeat_rows",
         ]
         summary[[col for col in plot_columns if col in summary.columns]].to_csv(
             run_dir / "topk_plot_data.csv",

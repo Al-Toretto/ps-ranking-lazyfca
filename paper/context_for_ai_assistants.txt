@@ -8,6 +8,17 @@ reference search, related work, formalization, paper writing, and result
 interpretation. The project is a PhD research paper draft in machine learning,
 artificial intelligence, Formal Concept Analysis, and pattern structures.
 
+Important companion context files
+---------------------------------
+For the most complete and up-to-date project context, also read:
+
+- docs/project_context.md
+- docs/experiment_plan.md
+- docs/paper_plan.md
+
+Those files contain the current experiment plan, paper plan, baseline strategy,
+and the discussion around randomized LazyFCA and IPS-KNN.
+
 High-level research topic
 -------------------------
 The PhD topic is:
@@ -104,7 +115,7 @@ Important implementation details
 --------------------------------
 Repository:
 
-OSDA-LazyFCA
+ps-ranking-lazyfca
 
 Main code:
 
@@ -116,9 +127,9 @@ Main code:
 
 Paper experiment framework:
 
-- paper_experiments/config.yaml
-- paper_experiments/run_paper_experiments.py
-- paper_experiments/results/<run_name>/
+- experiments/config.yaml
+- experiments/run_experiments.py
+- experiments/results/<run_name>/
 
 Paper draft:
 
@@ -140,11 +151,15 @@ Current command examples:
 
 Run one dataset:
 
-python3 paper_experiments/run_paper_experiments.py --run-name trial_rice --datasets rice --seeds 0
+python3 experiments/run_experiments.py --run-name trial_rice --datasets rice --seeds 1998
 
 Run full configured experiment:
 
-python3 paper_experiments/run_paper_experiments.py --run-name full_run
+python3 experiments/run_experiments.py --run-name ranking_macro_f1_10splits
+
+Import preserved baselines after the ranking run:
+
+python3 experiments/import_baseline_results.py --run-name ranking_macro_f1_10splits
 
 Rerunning is incremental. Completed chunks are skipped.
 
@@ -202,12 +217,38 @@ Default local datasets:
    - binary in the current local file
    - numerical
 
+9. ionosphere
+   - path: datasets/ionosphere.data
+   - target: class
+   - binary
+   - numerical/categorical source details should be checked from the local file
+
+10. image_segmentation
+    - path: datasets/image_segmentation.csv
+    - target: class
+    - multi-class
+    - numerical
+
+11. vehicle
+    - path: datasets/vehicle.csv
+    - target: class
+    - multi-class
+    - numerical
+
+12. glass
+    - path: datasets/glass.data
+    - target: type
+    - drop column: id
+    - multi-class
+    - numerical
+
 Preprocessing:
 
 - target labels are encoded as integers 0..C-1;
 - train/test split is stratified;
 - default split is 80/20;
-- default seeds are 0, 1, 2, 3, 4;
+- default seeds are 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
+  2007, matching the imported baseline split seeds;
 - numerical features are passed directly;
 - categorical features are one-hot encoded as boolean columns;
 - numerical features are not scaled.
@@ -327,7 +368,7 @@ Experiment outputs
 ------------------
 For a run name such as full_run, outputs are in:
 
-paper_experiments/results/full_run/
+experiments/results/full_run/
 
 Important files:
 
@@ -342,7 +383,9 @@ Important files:
   Long-format raw top-k results.
 
 - summary_by_dataset_metric.csv
-  Mean/std by dataset, method, metric, and k.
+  Mean/std/95% confidence-interval half-width by dataset, method, metric, and
+  k. Random top-k repeats are averaged within a split before split-level
+  uncertainty is computed.
 
 - compactness_summary.csv
   Best k, best F1, smallest k within 1/3/5 percent of best F1, compression.
@@ -356,6 +399,18 @@ Important files:
 
 - topk_plot_data.csv
   Slim plotting data for combined plots.
+
+- imported_baseline_results.csv
+  Imported deterministic FCALC, randomized FCALC, and IPS-KNN macro-F1 rows
+  mapped to the current repository's dataset names.
+
+- imported_baseline_summary.csv
+  Mean/std/95% confidence intervals for imported baselines over seeds
+  1998..2007.
+
+- paper_comparison_macro_f1.csv
+  Best ranked-LazyFCA rows by dataset/method/metric plus imported baseline
+  summaries, all using macro-F1.
 
 - plots/
   Combined dataset plots and individual per-metric plots.
@@ -373,6 +428,94 @@ Potential future engineering improvement:
 - Add mid-seed checkpoints every N test queries.
 - Store compact prediction accumulators, not full explanations.
 - Resume a long dataset/seed from the last completed query.
+
+Baseline and extension strategy
+-------------------------------
+The user's related paper/codebase implements deterministic FCALC/LazyFCA,
+randomized FCALC/LazyFCA, and IPS-KNN. The useful code has been cleaned into:
+
+baselines/interval_lazy_methods/
+
+The imported deterministic FCALC/LazyFCA baseline is the main vanilla
+LazyFCA-family baseline. Its aggregation function is selected by
+cross-validation on the training split, so describe it as deterministic FCALC
+with CV-selected aggregation.
+
+The imported randomized FCALC/LazyFCA baseline selects aggregation, number of
+iterations, and subsample size by cross-validation on the training split.
+
+Historical results for deterministic FCALC, randomized FCALC, IPS-KNN, and
+classical ML baselines have been preserved in:
+
+experiments/imported_baselines/
+
+These files were copied from the user's related repository at commit
+6cf605a52d7effd75e9dd83dea02b0700843dcc4. They contain macro-F1, selected
+parameters, runtimes, and compactness/size summaries for split seeds
+1998..2007. They do not contain predictions or confusion matrices, so binary
+positive-class F1 cannot be recovered from them. For comparison against these
+baselines, use macro-F1 as the primary paper metric for all datasets.
+
+Accepted related paper by the same author
+-----------------------------------------
+The user's related paper that implements deterministic FCALC/LazyFCA,
+randomized FCALC/LazyFCA, and IPS-KNN has been accepted and should be published
+soon. This is the paper associated with the repository used for the imported
+baseline code and historical macro-F1 results. It can already be cited, but
+the final bibliographic metadata should be checked before submission.
+
+The previous position paper that introduced IPS-KNN is also available locally.
+
+Local author-owned source files:
+
+- paper/my_other_papers/manuscript.pdf
+- paper/my_other_papers/manuscript.tex
+- paper/my_other_papers/position_paper.pdf
+- paper/my_other_papers/position_paper.tex
+
+Use these files to understand the methods and to cite them accurately. Do not
+copy text verbatim into the ranking paper. Rephrase the technical description
+and cite the accepted paper for deterministic FCALC, randomized FCALC, IPS-KNN,
+the source code/protocol, and the imported baseline results. Cite the position
+paper when discussing the first introduction of IPS-KNN.
+
+After the ranking experiment, run:
+
+python3 experiments/import_baseline_results.py --run-name ranking_macro_f1_10splits
+
+This creates imported_baseline_results.csv, imported_baseline_summary.csv, and
+paper_comparison_macro_f1.csv inside the selected result folder.
+
+The proposed method should stay deliberately simple: standard object-query
+LazyFCA hypothesis generation, global pooled top-k ranking, and majority vote
+over retained hypotheses with summed-score, class-prior, and lower-label
+tie-breaks. FCALC and randomized FCALC should be treated as baselines because
+they tune the classifier/aggregation mechanism as hyperparameters. Ranking on
+randomized hypotheses is a possible future extension, not necessary for the
+main paper.
+
+The old raw-count current implementation is named current_vanilla_lazyfca and
+is disabled by default because it often gives poor macro-F1 and previously
+often gave 0 positive-class F1 under the older binary scoring convention.
+
+The imported baselines are numeric-only. The runner skips churn for these
+methods because churn has raw categorical predictors.
+
+IPS-KNN should be handled carefully. It may outperform the ranked LazyFCA
+method because it uses a single compact interval-pattern reason. This should
+not be hidden, but it should not be allowed to distort the paper's research
+question. IPS-KNN changes the classifier family; the ranking paper studies how
+to improve aggregation inside LazyFCA. Good uses of IPS-KNN are:
+
+- related work;
+- a private diagnostic comparison;
+- an optional external compact-pattern baseline if framing is clear;
+- motivation for future work combining ranking with compact local
+  pattern-structure classifiers.
+
+If IPS-KNN dominates, the paper can still be framed honestly as a study of
+ranking and pruning LazyFCA hypotheses, not as a claim to beat all compact
+lazy pattern-structure classifiers.
 
 Reference search tasks for other AI assistants
 ----------------------------------------------

@@ -1,0 +1,776 @@
+%% 
+%% Copyright 2019-2024 Elsevier Ltd
+%% 
+%% This file is part of the 'CAS Bundle'.
+%% --------------------------------------
+%% 
+%% It may be distributed under the conditions of the LaTeX Project Public
+%% License, either version 1.3c of this license or (at your option) any
+%% later version.  The latest version of this license is in
+%%    http://www.latex-project.org/lppl.txt
+%% and version 1.3c or later is part of all distributions of LaTeX
+%% version 1999/12/01 or later.
+%% 
+%% The list of all files belonging to the 'CAS Bundle' is
+%% given in the file `manifest.txt'.
+%% 
+%% Template article for cas-sc documentclass for 
+%% double column output.
+
+\documentclass[a4paper,fleqn]{cas-sc}
+
+% If the frontmatter runs over more than one page
+% use the longmktitle option.
+
+%\documentclass[a4paper,fleqn,longmktitle]{cas-sc}
+
+\usepackage[numbers]{natbib}
+%\usepackage[authoryear]{natbib}
+% \usepackage[authoryear,longnamesfirst]{natbib}
+
+%%%Author macros
+\def\tsc#1{\csdef{#1}{\textsc{\lowercase{#1}}\xspace}}
+\tsc{WGM}
+\tsc{QE}
+%%%
+
+
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{adjustbox}
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage{xurl}
+\usepackage{float}
+\usepackage{placeins}
+
+\DeclareMathOperator*{\argmax}{argmax}
+\newcolumntype{Y}{>{\centering\arraybackslash}X}
+
+
+
+\begin{document}
+\let\WriteBookmarks\relax
+\def\floatpagepagefraction{1}
+\def\textpagefraction{.001}
+
+% Short title
+\shorttitle{Interpretable Lazy Classification with Interval Pattern Structures}
+
+% Short author
+\shortauthors{Tomat and Kuznetsov}
+
+% Main title of the paper
+\title[mode=title]{Interpretable Lazy Classification with Interval Pattern Structures and Local Interval Explanations}
+
+
+% First author
+%
+% Options: Use if required
+% eg: \author[1,3]{Author Name}[type=editor,
+%       style=chinese,
+%       auid=000,
+%       bioid=1,
+%       prefix=Sir,
+%       orcid=0000-0000-0000-0000,
+%       facebook=<facebook id>,
+%       twitter=<twitter id>,
+%       linkedin=<linkedin id>,
+%       gplus=<gplus id>]
+
+\author[1]{Alan Tomat}[orcid=0009-0005-6641-2870]
+\cormark[1]
+\ead{a.tomat@hse.ru}
+\credit{Methodology, Software, Investigation, Visualization, Writing -- original draft}
+
+\author[1]{Sergei O. Kuznetsov}[orcid=0000-0003-3284-9001]
+\ead{skuznetsov@hse.ru}
+\credit{Conceptualization, Supervision,  Writing -- review \& editing}
+
+%  School of Data Analysis and Artificial Intelligence, HSE University
+\affiliation[1]{organization={School of Data Analysis and Artificial Intelligence, HSE University},
+            addressline={11 Pokrovskiy bd.},
+            city={Moscow},
+            postcode={109025},
+            country={Russian Federation}}
+
+\cortext[1]{Corresponding author}
+
+
+
+\begin{abstract}
+Interval Pattern Structures (IPS) provide a natural way to represent local, human-readable explanations for predictions on numerical data through vectors of intervals interpreted as axis-parallel hyper-rectangles. In this paper, we develop and evaluate an IPS-based k-nearest neighbors classifier, IPS-KNN, that explains each prediction through a single local interval description rather than through the aggregation of many candidate descriptions.
+
+The proposed method introduces three explanation mechanisms: the Reason for Classification (RC), the Reduced Reason for Classification (RRC), and local feature importance scores derived from information gain. The method is formulated in the multiclass setting, while its main explanatory output remains a local interval description for each prediction. To contrast single-description and aggregation-based IPS strategies under the same protocol, we also include deterministic and randomized aggregation-based IPS baselines.
+
+Experiments on twelve numerical datasets show that IPS-KNN generally outperforms the aggregation-based IPS baselines, remains competitive with standard distance-weighted k-NN and several strong non-interpretable baselines, and produces compact local explanations for individual predictions. These results indicate that IPS-KNN combines competitive predictive performance with compact local interval-based explanations for numerical classification.
+\end{abstract}
+
+
+
+% Research highlights
+% \begin{highlights}
+% \item 
+% \item 
+% \item 
+% \end{highlights}
+
+
+% Keywords
+% Each keyword is seperated by \sep
+\begin{keywords}
+Interpretable machine learning \sep 
+Formal Concept Analysis \sep 
+Interval Pattern Structures \sep 
+Lazy classification \sep 
+k-nearest neighbors \sep 
+Local explanations 
+\end{keywords}
+
+\maketitle
+
+\section{Introduction}
+
+Lazy classification methods postpone model construction until a query object is presented. This property makes them attractive in settings where one seeks flexible local decisions rather than a single global model \cite{aha1991instance, kuznetsov2013scalable}. In many applications, however, predictive performance alone is not sufficient: the classifier is also expected to provide a human-readable explanation of why a particular object received its label. Recent work in interpretable machine learning has therefore emphasized the value of models that are understandable by construction, rather than explained only after prediction \cite{rudin2019stop, molnar2025, bodria2023benchmarking}.
+
+Interval Pattern Structures (IPS)~\cite{kaytoue2011revisiting}, an extension of Formal Concept Analysis (FCA) for numerical data, provide a natural way to represent local explanations. In this setting, object descriptions are represented as vectors of intervals, which can be visualized as axis-parallel hyper-rectangles in feature space \cite{kuznetsov2013fitting, kaytoue2011mining}. These interval descriptions are intrinsically interpretable, since each interval acts as a feature-wise constraint and the whole description can be read as a local rule supporting the prediction.
+
+Existing lazy IPS-based classifiers mainly rely on aggregating many candidate descriptions obtained by intersecting the query with training objects or sampled groups of objects \cite{masyutin2015lazy}. On high-dimensional numerical data, these descriptions often become overly specific and are difficult to use effectively for either classification or explanation. This motivates a different strategy: instead of aggregating many candidate descriptions, we classify the query through a single distance-guided local interval description that directly serves as an explanation.
+
+We call the proposed classifier \textbf{IPS-KNN}, since it combines distance-weighted \(k\)-nearest neighbors with Interval Pattern Structures in order to classify each query through a single local interval description. The method explains each prediction through a \textit{Reason for Classification} (RC), a hyper-rectangle with edges aligned with coordinate axes, a \textit{Reduced Reason for Classification} (RRC), and local feature importance scores derived from information gain.
+
+Classical \(k\)-nearest neighbors is already locally inspectable, since a prediction can be traced to neighboring training examples, their labels, and their distances to the query. However, this form of explanation may become difficult to inspect when \(k\) is large or when the data have many features, since the user must compare many neighbor-specific feature values. IPS-KNN instead summarizes the local evidence as a single interval-based description with one interval per feature, and the RRC further reduces this description to a smaller subset of feature-wise constraints.
+
+A preliminary binary version of IPS-KNN was introduced in an earlier workshop paper \cite{tomat2023interval}. In this paper, the method is formulated in the multiclass setting and evaluated more broadly. To compare single-description and aggregation-based IPS strategies under the same experimental protocol, we also include deterministic and randomized aggregation-based IPS baselines, denoted FCALC and FCALC(rand.).
+
+The main contributions of this paper are as follows:
+\begin{itemize}
+    \item we formalize the \textit{Reason for Classification} (RC) as a local interval explanation of the prediction;
+    \item we introduce the \textit{Reduced Reason for Classification} (RRC) by selecting a smaller subset of explanatory intervals;
+    \item we define local feature importance scores from normalized information gain;
+    \item we formulate IPS-KNN in the multiclass setting;
+    \item we evaluate IPS-KNN on twelve numerical datasets against classical baselines and aggregation-based IPS baselines under a unified experimental protocol.
+\end{itemize}
+
+The experimental results show that IPS-KNN generally outperforms the two aggregation-based IPS baselines, remains competitive with standard distance-weighted \(k\)-NN and several strong non-interpretable baselines, and provides compact local explanations for individual predictions.
+
+The remainder of the paper is organized as follows. Section~2 reviews related work. Section~3 recalls the basic definitions of pattern structures and interval pattern structures. Section~4 formulates the classification problem. Section~5 presents the methods. Sections~6 and~7 describe the experiments and results, Section~8 discusses the findings, and Section~9 concludes the paper.
+
+\section{Related Work}
+
+Interpretable classification methods are commonly divided into \emph{intrinsically interpretable} models and \emph{post-hoc} explanation methods. Intrinsically interpretable approaches include linear models, decision trees, rule-based classifiers, and other models whose decision process can be inspected directly \cite{molnar2025, rudin2019stop}. In contrast, post-hoc methods explain the behavior of already trained black-box models, often locally for individual predictions, through feature attribution, surrogate models, or counterfactuals \cite{ribeiro2016should, wachter2017counterfactual, bodria2023benchmarking}. Recent surveys emphasize that local explanations remain central in explainable artificial intelligence, especially for tabular classification tasks in high-stakes domains, while also noting the limitations of post-hoc explanations when the underlying model itself is opaque \cite{bodria2023benchmarking, hakkoum2024global, sokol2020interpretable}. These observations motivate the study of classifiers that are interpretable by construction.
+
+Among intrinsically interpretable classifiers, methods based on axis-parallel hyper-rectangles are especially relevant to numerical data. Salzberg's Nested Generalized Exemplar (NGE) classifier is a classical example in which training instances are generalized into labeled hyper-rectangles \cite{salzberg1991nearest}. Hyper-rectangle models remain attractive because they provide a direct rule-like description of each decision region. More recent work has also explored alternative geometric constructions, including non-axis-parallel hyper-rectangles and other explainable region-based classifiers \cite{kirmse2014large, sun2022geometrically, liapis2025interpretable}. For interval-valued descriptions, a vector of intervals naturally defines such a hyper-rectangle in feature space, which makes interval-based methods a natural candidate for local interpretability on numerical data.
+
+Formal Concept Analysis (FCA)~\cite{ganter2024formal}  provides a mathematical framework for deriving human-readable descriptions from data reduced to binary attribute representation, while Pattern Structures \cite{ganter2001pattern} give a tool for interpretable processing of ``complex" data. In particular, Interval Pattern Structures (IPS) extend this framework to numerical data by representing each object through a vector of intervals and by using the interval-based similarity operator \cite{kuznetsov2013fitting, kaytoue2011mining, kaytoue2011revisiting}. This makes IPS especially suitable for classification settings in which one seeks explicit, local, and feature-wise descriptions of predictions. More broadly, recent FCA-based work has continued to study interpretable classification models and general frameworks for FCA-based classifiers \cite{hu2024three}.
+
+The lazy classification approach based on pattern structures was proposed in~\cite{kuznetsov2013fitting, kuznetsov2013scalable} and a lazy IPS-based classification strategy was studied first in Masyutin et al. \cite{masyutin2015lazy}. In that approach, the query object is intersected with training examples to generate class-specific candidate descriptions, and the resulting descriptions are aggregated to classify the query. When numerical data are high-dimensional, however, these intersections often become overly specific: many generated descriptions cover only a very small number of objects and contribute little useful evidence. To mitigate this problem, Masyutin et al. proposed a randomized variant in which the query is intersected with sampled groups of training objects rather than with single objects, thereby producing more general descriptions \cite{masyutin2015lazy, semenkov2021ensemble}.
+
+A different direction was explored in our earlier workshop paper \cite{tomat2023interval}, where the distance-weighted \(k\)-nearest neighbors classifier was combined with IPS in order to obtain a single labeled hyper-rectangle explaining each prediction. That preliminary study was limited to binary classification, considered only one dataset, and did not include reduced explanations or local feature importance. The present paper develops that direction further through a multiclass formulation, a formal definition of the Reason for Classification (RC), a Reduced Reason for Classification (RRC), local feature importance scores, and a broader empirical evaluation on twelve datasets.
+
+In addition to the proposed IPS-KNN method, this paper includes a baseline family derived from the lazy IPS classifier of Masyutin et al. \cite{masyutin2015lazy}. We denote the deterministic variant by \textbf{FCALC} and the randomized one by \textbf{FCALC(rand.)}. Our implementation preserves the original deterministic and randomized hypothesis-generation schemes, while extending the decision stage to multiclass classification and allowing several support- and proximity-based scoring functions to be treated as a hyperparameter during hyperparameter tuning. These baselines are included to compare two different strategies for IPS-based lazy classification: aggregating many candidate descriptions versus selecting a single distance-guided local description.
+
+Despite these advances, a gap remains between aggregation-based lazy IPS classifiers and compact local explanation mechanisms for individual predictions. Existing aggregation-based approaches generate many candidate interval descriptions and combine their evidence, but they do not directly yield a compact explanation with a reduced subset of relevant interval constraints and corresponding local feature importance scores. The present paper addresses this gap through IPS-KNN, the Reason for Classification (RC), the Reduced Reason for Classification (RRC), and local feature importance.
+
+\section{Basic definitions}
+This section briefly recalls the definitions of pattern structures and interval pattern structures used throughout the paper.
+
+\subsection{Pattern structures}
+
+Let $G$ be a set of objects, let $(D,\sqcap)$ be a meet-semi-lattice of all possible object descriptions and let $\delta: G\to D$ be a mapping from the set of objects to the set of descriptions. Then $(G,\underline{D},\delta)$, where $\underline{D}=(D,\sqcap)$, is called a pattern structure, provided that the set $\delta(G):= \{\delta(g)\mid g\in G\}$ generates a complete subsemilattice $(D_\delta,\sqcap)$ of $(D,\sqcap)$. 
+
+Elements of $D$ are called patterns and are naturally ordered by subsumption relation $\sqsubseteq:$ given $\mathbf{c}, \mathbf{d} \in D$ one has $\mathbf{c}\sqsubseteq \mathbf{d} \Leftrightarrow \mathbf{c}\sqcap \mathbf{d} = \mathbf{c}$. Operation $\sqcap$ is also called a similarity operation. A pattern structure $(G, \underline{D}, \delta)$ gives rise to the following derivation operators $(\cdot)^\diamond$:
+\begin{equation}
+    A^\diamond = \sqcap_{g\in A} \delta(g) \text{ for } A\subseteq G
+\end{equation}
+\begin{equation}
+    \mathbf{d}^\diamond=\{g\in G\mid \mathbf{d}\sqsubseteq\delta(g)\} \text{ for } \mathbf{d}\in(D,\sqcap)
+\end{equation}
+These operators form a Galois connection between the powerset of $G$ and $(D, \sqcap)$. The pairs $(A, \mathbf{d})$ satisfying $A \subseteq G$, $\mathbf{d} \in D$, $A^\diamond = \mathbf{d}$, and $A = \mathbf{d}^\diamond$ are called pattern concepts of $(G, D, \delta)$, with pattern extent $A$ and pattern intent $\mathbf{d}$.  Pattern concepts are ordered w.r.t. set inclusion on extents. The ordered set of pattern concepts makes a lattice, called pattern concept lattice.
+
+\subsection{Interval Pattern Structures}
+Interval pattern structures are a type of pattern structures in which the elements of the set $D$ are represented as $m$--dimensional vectors of pairs of values, with each pair corresponding to the value of a single feature. Those pairs define intervals in the feature space. Here, $m$ is the number of features. Interval pattern structures can be used to represent numeric features, by considering each numeric value as a zero-length interval.
+
+Thus, the patterns of the set $D$ are $m$--dimensional vectors of intervals. Having two patterns $\mathbf{x}_i$ and $\mathbf{x}_j$ in $D$, where
+$\mathbf{x}_i=\langle [x_{i1},x_{i1}],\dots,[x_{im},x_{im}]\rangle$
+and
+$\mathbf{x}_j=\langle [x_{j1},x_{j1}],\dots,[x_{jm},x_{jm}]\rangle$,
+their similarity is defined as follows:
+
+\begin{equation}
+    \mathbf{x}_i \sqcap \mathbf{x}_j =
+    \langle
+    [\min(x_{i1},x_{j1}), \max(x_{i1},x_{j1})],
+    \dots,
+    [\min(x_{im},x_{jm}), \max(x_{im},x_{jm})]
+    \rangle .
+\end{equation}
+
+The subsumption relation $\sqsubseteq$ is given by:
+
+\begin{equation}
+    \mathbf{x}_i \sqsubseteq \mathbf{x}_j \Longleftrightarrow \mathbf{x}_i \sqcap \mathbf{x}_j = \mathbf{x}_i
+\end{equation}
+
+Subsumption can be thought of as the membership of a data point to a hyper-rectangle defined by a pattern.
+
+\section{Problem Formulation}
+We now introduce the notation used to describe the classification problem throughout the paper.
+
+Let $\mathcal{D} = \{ (\mathbf{x}_i, y_i) \}_{i=1}^n$ be a dataset of $n$ objects, each of which is represented as a vector of $m$ numerical features $\mathbf{x}_i = \langle x_{i1}, x_{i2}, \ldots, x_{im} \rangle$, and each object is associated with a label $y_i \in \{\tau, c_1, c_2, \dots\}$. An object associated with the label $\tau$ is an unknown object that needs classification, while objects associated with labels $C = \{c_1, c_2, \dots\}$ are known objects. In other words, the target feature splits the set of objects $G$ into two distinct groups: known objects $T = \bigcup_{c \in C} G_c$, and unknown or undetermined objects $G_\tau= G \setminus T$, which require classification. All feature values are represented as zero-length intervals, enabling the utilization of the IPS framework. Consequently, the descriptions of all objects are represented as vectors consisting of $m$ intervals.
+
+
+We then define the interval pattern structure $(G, (D, \sqcap), \delta)$ where $(D, \sqcap)$ is the meet-semilattice of all possible object descriptions, $\delta:G \rightarrow D$ is the mapping that associates each object $g \in G$ with its description $\mathbf{d} \in D$.
+
+\section{Methods}
+We consider two families of lazy classifiers based on interval pattern structures. The first family, denoted FCALC and FCALC(rand.), is used as a baseline derived from the lazy IPS classification scheme of Masyutin et al. \cite{masyutin2015lazy}. The second family is the proposed IPS-KNN approach, which replaces the aggregation of many candidate descriptions with a single distance-guided local description and augments it with compact explanations and local feature importance.
+
+\subsection{FCALC and FCALC(rand.) baseline}
+
+This subsection describes the baseline family used in our experiments. It is derived from the lazy IPS classification approach of Masyutin et al. \cite{masyutin2015lazy}, adapted here to the multiclass setting. We use the name \textbf{FCALC} for the deterministic variant and \textbf{FCALC(rand.)} for its randomized counterpart.
+
+The central idea is to classify a query object by generating many class-specific interval descriptions and aggregating the evidence they provide. In the deterministic variant, the query object is intersected with training objects from each class, producing candidate descriptions. A candidate is informative when it is supported mainly by objects of one class and only weakly supported by objects of the remaining classes. The final prediction is then obtained by aggregating the evidence contributed by all such candidates.
+
+A known difficulty of this strategy on numerical data is that many intersections become overly specific, especially in high-dimensional spaces. In the extreme case, an intersection may describe only the training object from which it was generated together with the query object itself. Such descriptions provide little useful evidence for classification and may lead to unstable decisions. To alleviate this problem, Masyutin et al. proposed a randomized hypothesis-generation strategy in which the query is intersected not only with single objects, but also with sampled groups of objects, thus producing more general interval descriptions \cite{masyutin2015lazy}.
+
+In this paper, both variants are implemented in a multiclass setting. Let \(G_c\) denote the subset of training objects labeled with class \(c \in C\), and let \(T=\bigcup_{c\in C} G_c\) be the full training set. For a query object \(\mathbf{x}\) and a candidate description generated from class \(c\), represented by an object or sampled pattern \(\mathbf{z}\), we quantify its class-specificity by the target support
+
+\begin{equation}
+    a_c(\mathbf{x},\mathbf{z}) =
+    \left|\left\{
+    \mathbf{x}_j \in G_c
+    \;\middle|\;
+    \delta(\mathbf{x}) \sqcap \delta(\mathbf{z})
+    \sqsubseteq \delta(\mathbf{x}_j)
+    \right\}\right| 
+\end{equation}
+
+and the non-target support
+
+\begin{equation}
+    b_c(\mathbf{x},\mathbf{z}) =
+    \left|\left\{
+    \mathbf{x}_j \in T \setminus G_c
+    \;\middle|\;
+    \delta(\mathbf{x}) \sqcap \delta(\mathbf{z})
+    \sqsubseteq \delta(\mathbf{x}_j)
+    \right\}\right| .
+\end{equation}
+A large value of $a_c(\mathbf{x},\mathbf{z})$ together with a small value of $b_c(\mathbf{x},\mathbf{z})$ indicates that the candidate description is more specific to class $c$.
+
+In addition to support, we also consider a proximity measure that reflects how close the supporting training objects are to the query object after feature-wise normalization to \([0,1]\):
+
+
+\begin{equation}
+    p_c(\mathbf{x},\mathbf{z}) =
+    1 -
+    \frac{
+    \sum\limits_{\substack{
+    \mathbf{x}_j \in G_c\\
+    \delta(\mathbf{x}_j) \sqsupseteq \delta(\mathbf{x}) \sqcap \delta(\mathbf{z})
+    }}
+    \left(
+    \sqrt{\sum\limits_{k=1}^{m}(x_{jk}-x_k)^2}
+    \right)
+    }
+    {
+    \sqrt{m}\cdot a_c(\mathbf{x},\mathbf{z})
+    } .
+\end{equation}
+
+
+This quantity favors candidate descriptions whose class-$c$ supporting objects are locally similar to the query.
+
+For the deterministic variant, candidate descriptions are generated by intersecting the query with individual training objects. For the randomized variant, candidate descriptions are generated by sampling groups of training objects directly from each class-specific subset \(G_c\). We denote by \(\mathcal{I}\) the number of sampled groups, or candidate descriptions, per class and by \(\mathcal{S}\) the size of each sampled group. The intersection of the objects in each sampled group yields one interval pattern, and the query is then evaluated against the resulting sampled patterns. This reduces the number of evaluated candidates and produces more general descriptions than one-by-one intersections.
+
+
+To write both variants uniformly, let \(\mathcal{H}_c\) denote the set of candidate descriptions generated for class \(c\). In deterministic FCALC, \(\mathcal{H}_c\) is obtained from individual training objects in \(G_c\). In FCALC(rand.), \(\mathcal{H}_c\) is obtained from sampled groups. The final class decision is then determined by a class-wise scoring rule over \(\mathcal{H}_c\). In the experiments, the specific scoring rule is treated as a hyperparameter and selected on the training split by cross-validation.
+
+The \textbf{non-falsified} rule selects the class with the largest proportion of candidate descriptions that are not falsified by any object from the remaining classes:
+\begin{equation}
+    y = \argmax_c \left(
+    \frac{1}{|\mathcal{H}_c|}
+    \sum_{\mathbf{z}_i \in \mathcal{H}_c} [b_c(\mathbf{x},\mathbf{z}_i) = 0]
+    \right).
+\end{equation}
+
+The \textbf{non-falsified support} rule favors candidate descriptions with high target support while allowing only limited non-target support:
+\begin{equation}
+    y = \argmax_c \left(
+    \frac{1}{|\mathcal{H}_c|}
+    \sum_{\mathbf{z}_i \in \mathcal{H}_c}
+    a_c(\mathbf{x},\mathbf{z}_i) [b_c(\mathbf{x},\mathbf{z}_i) \leq \alpha |T \setminus G_c|]
+    \right).
+\end{equation}
+This rule is the multiclass counterpart of the decision principle used by Masyutin et al. \cite{masyutin2015lazy}.
+
+The \textbf{ratio-support} rule compares target and non-target support while filtering candidates by a class-normalized threshold:
+\begin{equation}
+    y = \argmax_c \left(
+    \frac{|T \setminus G_c|
+    \sum\limits_{\mathbf{z}_i \in \mathcal{H}_c}
+    a_c(\mathbf{x},\mathbf{z}_i) \left[\frac{a_c(\mathbf{x},\mathbf{z}_i)}{|G_c|} \geq \gamma \frac{b_c(\mathbf{x},\mathbf{z}_i)}{|T \setminus G_c|}\right]}
+    {|G_c|
+    \sum\limits_{\mathbf{z}_i \in \mathcal{H}_c}
+    b_c(\mathbf{x},\mathbf{z}_i) \left[\frac{a_c(\mathbf{x},\mathbf{z}_i)}{|G_c|} \geq \gamma \frac{b_c(\mathbf{x},\mathbf{z}_i)}{|T \setminus G_c|}\right]}
+    \right).
+\end{equation}
+
+The \textbf{proximity} rule selects the class with the largest average proximity:
+\begin{equation}
+    y = \argmax_c \left(
+    \frac{1}{|\mathcal{H}_c|}
+    \sum_{\mathbf{z}_i \in \mathcal{H}_c} p_c(\mathbf{x},\mathbf{z}_i)
+    \right).
+\end{equation}
+
+The \textbf{proximity non-falsified} rule considers only candidate descriptions that are not falsified by other classes:
+\begin{equation}
+    y = \argmax_c \left(
+    \frac{1}{|\mathcal{H}_c|}
+    \sum_{\mathbf{z}_i \in \mathcal{H}_c} p_c(\mathbf{x},\mathbf{z}_i) [b_c(\mathbf{x},\mathbf{z}_i) = 0]
+    \right).
+\end{equation}
+
+Finally, the \textbf{proximity-support} rule combines local similarity, target support, and tolerance to non-target support:
+\begin{equation}
+    y = \argmax_c \left(
+    \frac{1}{|\mathcal{H}_c|}
+    \sum_{\mathbf{z}_i \in \mathcal{H}_c}
+    a_c(\mathbf{x},\mathbf{z}_i) p_c(\mathbf{x},\mathbf{z}_i) [b_c(\mathbf{x},\mathbf{z}_i) \leq \alpha |T \setminus G_c|]
+    \right).
+\end{equation}
+
+Unlike IPS-KNN, these baseline methods rely on aggregating many candidate descriptions rather than selecting a single local one.
+
+
+\subsection{IPS-KNN}
+IPS-KNN was introduced in our earlier workshop paper \cite{tomat2023interval} as an interpretable variant of the distance-weighted \(k\)-nearest neighbors classifier based on interval pattern structures. In contrast to FCALC-style methods, which aggregate many candidate descriptions, IPS-KNN relies on a single local description selected through distance. This choice yields a compact hyper-rectangle around the query object and therefore leads naturally to local interpretability. In the present paper, IPS-KNN is formulated in the multiclass setting and enriched with reduced explanations and local feature importance scores.
+
+\subsubsection{Classification}
+To classify a new object \(\mathbf{x}\in G_\tau\), we first identify the set \(G_{knn}(k,\mathbf{x})\) of the \(k\)-nearest neighbors of \(\mathbf{x}\) in the training set \(T\) using the Euclidean distance. Their common interval description is then computed as \(G_{knn}^{\diamond}(k,\mathbf{x})\), where this notation denotes the derivation \(G_{knn}(k,\mathbf{x})^\diamond\). In an interval pattern structure, this common description is the component-wise interval hull of the \(k\)-nearest neighbors, i.e., the smallest axis-parallel hyper-rectangle containing their feature vectors.
+
+The set of voters is defined as the closure of these neighbors in the interval pattern structure, restricted to objects with known labels:
+\begin{equation}\label{section_3:eq_voting_closure}
+    V(k,\mathbf{x}) = G_{knn}^{\diamond\diamond}(k,\mathbf{x}) \cap T.
+\end{equation}
+
+Thus, \(V(k,\mathbf{x})\) contains all training objects whose descriptions subsume the common interval description of the \(k\)-nearest neighbors. In particular, every object in \(G_{knn}(k,\mathbf{x})\) is a voter, but the closure may also include additional training objects satisfying the same interval description.
+
+The voter set is partitioned by class into subsets \(V_c(k,\mathbf{x})\), where \(c\in C\) and \(V_c(k,\mathbf{x}) \subseteq V(k,\mathbf{x})\). For each class \(c\), we define the voting score
+\begin{equation}\label{eq:voting_score}
+    s_c(k,\mathbf{x}) = \sum_{\mathbf{x}_j \in V_c(k,\mathbf{x})}
+    \frac{1}{\|\delta(\mathbf{x}_j)-\delta(\mathbf{x})\|_2}.
+\end{equation}
+The predicted class of the query object is then given by
+\begin{equation}
+    \hat{y}(k,\mathbf{x}) = \argmax_{c\in C} s_c(k,\mathbf{x}).
+\end{equation}
+
+IPS-KNN differs from the standard distance-weighted \(k\)-NN classifier only in the definition of the voters. In classical distance-weighted \(k\)-NN, the voters are exactly the objects in \(G_{knn}(k,\mathbf{x})\). In IPS-KNN, the voters are given by the closure \(G_{knn}^{\diamond\diamond}(k,\mathbf{x}) \cap T\), which may include additional objects described by the same interval pattern. This replacement preserves the local nature of \(k\)-NN while producing an interval-based description that can later be used for explanation.
+
+\subsubsection{Reason for Classification (RC) Hyper-rectangle}
+A labeled hyper-rectangle can be interpreted as a set of intervals, with each interval corresponding to a feature. For an object to be classified with the label of the hyper-rectangle, its feature values must fall within these intervals. Thus, a hyper-rectangle can be seen as a combination of intervals that supports a certain classification outcome.
+
+In the case of IPS-KNN, it is possible to provide the entire voting hyper-rectangle as an explanation. However, only the supporting objects relevant to the hyper-rectangle's label should be considered. Although opposers may lie within the hyper-rectangle, it is preferable for them to be minimal in number. Additionally, the use of a single value for $k$ across the entire set of query objects may allow irrelevant objects to cause the hyper-rectangle to expand beyond the cluster of similar objects to which the query object belongs. To mitigate this issue, the explaining hyper-rectangle is formed using a subset of the supporting objects that are most similar to the query object and whose sum of weights is larger than the opposing score.
+
+
+Formally, suppose IPS-KNN classified the query object \(\mathbf{x}\) as class \(\zeta\), with the set of supporters defined as the voters of class \(\zeta\), denoted by \(V_\zeta(k,\mathbf{x})\). Since \(\hat{y}(k,\mathbf{x}) = \zeta\), we have \(s_\zeta(k,\mathbf{x}) > s_c(k,\mathbf{x})\) for any \(c \in C \setminus \{\zeta\}\). The elements of \(V_\zeta(k,\mathbf{x})\) can be sorted in increasing distance from \(\mathbf{x}\):
+
+\begin{equation}
+    ||\delta(\mathbf{x}) - \delta(\mathbf{v}_1^\zeta)||_2 \leq ||\delta(\mathbf{x}) - \delta(\mathbf{v}_2^\zeta)||_2 \leq \dotso \leq ||\delta(\mathbf{x}) - \delta(\mathbf{v}_{|V_\zeta(k, \mathbf{x})|}^\zeta)||_2 .
+\end{equation}
+
+The cumulative sum of weights of the $p$-nearest supporters to $\mathbf{x}$ is defined as:
+
+\begin{equation}
+    S_p^\zeta(k, \mathbf{x}) = \sum_{i = 1}^{p}  \frac{1}{||\delta(\mathbf{x}) - \delta(\mathbf{v}_i^\zeta)||_2} .
+\end{equation}
+
+The smallest $p$ such that $S_p^\zeta(k, \mathbf{x}) > s_c(k, \mathbf{x})$ for any $c \in C \setminus \{\zeta\}$ is denoted as:
+\begin{equation}
+    p^*(k,\mathbf{x}) = \min \{p \mid S_p^\zeta(k, \mathbf{x}) > s_c(k, \mathbf{x}) \;\; \forall c \in C \setminus \{\zeta\}\}.
+\end{equation}
+
+Let the set \(V_\zeta^*(k, \mathbf{x}) = \{\mathbf{v}_1^\zeta, \mathbf{v}_2^\zeta, \dotso, \mathbf{v}_{p^*(k,\mathbf{x})}^\zeta\}\) be the subset of \(V_\zeta(k, \mathbf{x})\) with the minimum number of elements that are nearest to \(\mathbf{x}\) and whose sum of weights is larger than every competing class score \(s_c(k,\mathbf{x})\), \(c \in C \setminus \{\zeta\}\). For the fixed query object \(\mathbf{x}\) and the selected value of \(k\), the \textit{Reason for Classification} (RC) hyper-rectangle is given by the following similarity:
+
+
+\begin{equation} \label{section_3:eq_r}
+    \mathbf{RC} = (V_\zeta^*(k, \mathbf{x}))^\diamond \sqcap \delta(\mathbf{x}) .
+\end{equation}
+
+By selecting the nearest (most similar) supporters, only the objects most influential to the classification result are included. Additionally, choosing the minimum number of elements results in a hyper-rectangle with a smaller volume, avoiding the inclusion of irrelevant objects in case of large values of $k$.
+
+The hyper-rectangle RC is a pattern in the interval pattern structure $(G, (D, \sqcap), \delta)$, where each interval corresponds to a feature of the dataset. Comparing these intervals with the corresponding ranges of feature values provides local interpretability.
+
+\subsubsection{Reduced Reason for Classification and Feature Importance}
+The RC hyper-rectangle represents the explanation as a set of $m$ uniform rules, where each rule corresponds to the value of a feature lying within its respective interval in RC. While the uniformity and simplicity of these rules make the explanation quite straightforward, in cases with a large number of features, research has shown that the average human may struggle to focus on all the provided information at once.
+
+
+The RC hyper-rectangle always contains one interval for each feature of the dataset. This makes RC a uniform and formally complete local explanation of the prediction. However, not all of these intervals are equally informative for a given query object: some intervals may be redundant in the sense that removing them does not change the set of training objects supporting the explanation. Since shorter explanations are generally easier for a human to inspect and understand \cite{dudyrev2022human, miller1956magical}, it is preferable to identify a smaller subset of intervals that preserves the same explanatory content. To this end, similarly to decision trees, we use a greedy feature-selection procedure based on Information Gain (IG) in order to construct a Reduced Reason for Classification (RRC).
+
+
+For the set of known objects $T$, the information gain $IG(RC_i)$ when splitting the dataset based on the interval $RC_i$ corresponding to feature $m_i$ is defined as:
+\begin{equation}\label{eq:ig}
+    IG(RC_i) = H(T) - \left(
+    \frac{|T^{in}(RC_i)|}{|T|} \cdot H(T^{in}(RC_i)) +
+    \frac{|T^{out}(RC_i)|}{|T|} \cdot H(T^{out}(RC_i))
+    \right) .
+\end{equation}
+
+Here, \(T^{in}(RC_i)\) is the subset of \(T\) whose objects' values for feature \(m_i\) lie inside the interval \(RC_i\), and \(T^{out}(RC_i)\) is the subset of \(T\) whose objects' values for feature \(m_i\) lie outside the interval \(RC_i\). For any subset \(S \subseteq T\), let \(S_c=\{\mathbf{x}_j \in S \mid y_j=c\}\). The entropy \(H(S)\) is then given by:
+\begin{equation}
+    H(S) = - \sum_{c \in C} \frac{|S_c|}{|S|}\cdot \log_2\left(\frac{|S_c|}{|S|}\right) .
+\end{equation}
+
+The defined information gain is used in Algorithm \ref{alg:interval_selection} to reduce the dimensionality of the RC hyper-rectangle. This is done by iteratively choosing the interval of RC with the largest information gain and updating the dataset to include only the objects belonging to that interval. The process continues until the objects that satisfy all the selected intervals are exactly the same as those that subsume RC entirely. In this way, the features that are irrelevant for classifying the current query object are eliminated.
+
+The resulting subset of intervals is the \textit{Reduced Reason for Classification} (RRC) and is used for local interpretability instead of the full RC, since it conveys the same information with a smaller size.
+
+\begin{algorithm}[H]
+\caption{Feature selection in IPS-KNN using IG}\label{alg:interval_selection}
+\hspace*{\algorithmicindent} \textbf{Input:} \raggedright $RC$: vector of intervals, $T$: set of known objects \\ 
+\hspace*{\algorithmicindent} \textbf{Output:} \raggedright $RC_{\text{selected}}$: a subset of $RC$ that contains the exact number of objects
+\begin{algorithmic}[1]
+\Function{SelectIntervals}{$RC, T$}
+\State $RC_{\text{selected}} \gets \emptyset$
+\While{$|T| > |T^{\text{in}}(RC)|$}
+    \State $IG_{\text{max}} \gets -\infty$
+    \For{$RC_i$ in $RC \setminus RC_{\text{selected}}$}
+        \State Compute $IG(RC_i)$ using Equation~\ref{eq:ig}
+        \If{$IG(RC_i) > IG_{\text{max}}$}
+            \State $IG_{\text{max}} \gets IG(RC_i)$
+            \State $RC_{\text{max}} \gets RC_i$
+        \EndIf
+    \EndFor
+    \State Add $RC_{\text{max}}$ to $RC_{\text{selected}}$
+    \State Split $T$ using $RC_{\text{max}}$ into $T^{in}(RC_{\text{max}})$ and $T^{out}(RC_{\text{max}})$
+    \State $T \gets T^{in}(RC_{\text{max}})$
+\EndWhile
+\State \Return $RC_{\text{selected}}$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+Furthermore, since the information gain metric in Equation \ref{eq:ig} quantifies the reduction in impurity achieved by splitting the dataset with a particular interval, the intervals that split the dataset most purely are the most important for classification. The information gain $IG(RC_i)$ thus indicates the importance of interval $RC_i$ and its corresponding feature for classifying the query object.
+
+To enhance the interpretability of the IPS-KNN algorithm, we introduce the Feature Importance (FI) metric. This metric quantifies the significance of each feature in the classification process, derived from the normalized Information Gain, and provides a clear measure of a feature's contribution to the classification decision. Feature Importance for feature $m_i$ is calculated as follows:
+\begin{equation}\label{eq:fi}
+FI(m_i) = \frac{IG(RRC_i)}{\sum_{j}IG(RRC_j)}
+,
+\end{equation}
+where $RRC_i$ is the interval corresponding to feature $m_i$ in the RRC.
+
+The normalized Information Gain ensures that the importance scores of all features sum to 1, allowing for direct comparison and interpretation of feature significance. A higher Feature Importance score indicates a more significant role in the classification process. Since this process is performed for each query object, different features may be important for the classification of different query objects.
+
+\FloatBarrier
+\subsubsection{Illustrative example}\label{sec:illustrative_example}
+
+To illustrate the explanation mechanism, we consider a query object from the red wine quality dataset. For this query, IPS-KNN was run with \(k=57\) and predicted the class \textit{good}. The \(57\) nearest neighbors define the common interval description, whose closure produced a voter set containing \(76\) voters of the predicted class \textit{good} and \(11\) voters of the opposing class \textit{bad}. In the RC construction, the value of \(p^*(k,\mathbf{x})\) was \(2\): only the two nearest supporting voters were needed for their cumulative weight to exceed the competing class score. Thus, the full RC hyper-rectangle was constructed from a small subset of the most influential supporting voters, rather than from all voters of the predicted class.
+
+
+\begin{table}[H]
+\caption{Illustrative IPS-KNN explanation for a query object from the red wine quality dataset. The table reports the dataset range of each feature, the query value, the full Reason for Classification (RC), the Reduced Reason for Classification (RRC), and the corresponding feature importance (FI) scores.}
+
+
+\begin{tabular}{lccccc}
+\toprule
+Feature & Range & Value & $\mathbf{RC}$ & $\mathbf{RRC}$ & $FI$ \\
+\midrule
+fixed acidity & $[4.6, 15.9]$ & $10.50$ & $[10.4, 10.5]$ & $[10.4, 10.5]$ & $0.4113$ \\
+volatile acidity & $[0.12, 1.58]$ & $0.26$ & $[0.24, 0.26]$ & $[0.24, 0.26]$ & $0.5803$ \\
+citric acid & $[0.0, 1.0]$ & $0.47$ & $[0.46, 0.49]$ & -- & -- \\
+residual sugar & $[0.9, 15.5]$ & $1.90$ & $[1.8, 1.9]$ & -- & -- \\
+chlorides & $[0.012, 0.611]$ & $0.078$ & $[0.075, 0.078]$ & -- & -- \\
+free sulfur dioxide & $[1.0, 72.0]$ & $6.00$ & $[6.0, 6.0]$ & -- & -- \\
+total sulfur dioxide & $[6.0, 289.0]$ & $24.00$ & $[20.0, 24.0]$ & -- & -- \\
+density & $[0.99007, 1.00369]$ & $0.9976$ & $[0.9976, 0.9977]$ & -- & -- \\
+pH & $[2.74, 4.01]$ & $3.18$ & $[3.18, 3.25]$ & $[3.18, 3.25]$ & $0.0084$ \\
+sulfates & $[0.33, 2.0]$ & $1.04$ & $[1.02, 1.06]$ & -- & -- \\
+alcohol & $[8.4, 14.9]$ & $10.90$ & $[10.8, 11.0]$ & -- & -- \\
+\bottomrule
+\end{tabular}
+\label{tab:wine_example}
+\end{table}
+
+
+
+Table~\ref{tab:wine_example} presents the resulting local explanation. The column RC contains the full interval-based local explanation extracted from the selected supporting voters, while the RRC column shows the reduced explanation obtained by the greedy feature selection procedure.
+
+In this example, the reduced explanation contains only three features: fixed acidity, volatile acidity, and pH. Their corresponding FI scores show that volatile acidity is the most influential feature for this prediction, followed by fixed acidity, while pH contributes only marginally. The remaining features are part of the full RC hyper-rectangle but are removed from the reduced explanation because they are not necessary to preserve the same supporting set.
+
+The reduced explanation can also be read as a set of local decision rules for the current query object. In this example, the wine is classified as \emph{good} because its values of fixed acidity, volatile acidity, and pH fall within the intervals selected in the RRC. Among these features, volatile acidity and fixed acidity contribute the most to the decision, as indicated by their larger FI scores, while pH plays a comparatively minor role. Relative to the full dataset ranges, the selected intervals show that the prediction is mainly supported by a narrow range of volatile acidity and fixed acidity values, together with a less influential constraint on pH.
+
+This example illustrates the main advantage of IPS-KNN: the method produces a local interval-based explanation for the prediction and then compresses it into a smaller subset of relevant features, making the decision easier to interpret without changing the underlying local evidence.
+
+\FloatBarrier
+\section{Experiments}\label{section_experiments}
+All evaluated classifiers were implemented in Python, and the code used for the experiments is publicly available on GitHub\footnote{\url{https://github.com/Al-Toretto/Interpretable-Lazy-Classification-with-Interval-Pattern-Structures-and-Local-Interval-Explanations}}. The same repeated train--test protocol and hyperparameter search procedure were applied to all methods in order to ensure a consistent comparison.
+
+\subsection{Datasets}
+Twelve numerical datasets were selected to evaluate the proposed IPS-based classifiers against classical and state-of-the-art baselines. Table~\ref{tab:datasets} summarizes the datasets, including their domains, sizes, numbers of features, numbers of classes, class distributions, and sources. The selected datasets span several application areas and vary substantially in dimensionality, class structure, and class balance, providing a diverse benchmark for evaluation.
+
+\begin{table}[H]
+\caption{Summary of the datasets used to evaluate the proposed classifiers and the baseline methods. Class distributions are reported as percentages sorted from the largest to the smallest class. The ``Source'' column contains hyperlinks to the original dataset repositories.}
+\label{tab:datasets}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.6}
+\begin{tabularx}{\textwidth}{
+>{\raggedright\arraybackslash}p{2cm}
+>{\raggedright\arraybackslash}p{2cm}
+>{\centering\arraybackslash}p{1.5cm}
+>{\centering\arraybackslash}p{1.5cm}
+>{\centering\arraybackslash}p{1.3cm}
+>{\centering\arraybackslash}X
+>{\centering\arraybackslash}p{1cm}
+}
+\toprule
+\textbf{Name} & \textbf{Field} & \textbf{\# samples} & \textbf{\# features} & \textbf{\# classes}  & \textbf{Class distribution (\%)} &  \textbf{Source} \\
+\midrule
+
+Red Wine Quality & Chemistry & 1599 & 11 & 2 & 53.5/46.5 & \href{https://archive.ics.uci.edu/dataset/186/wine+quality}{UCI} \\
+
+Breast Cancer Wisconsin (Diagnostic) & Medicine (Image Processing) & 569 & 30 & 2 & 62.7/37.3 & \href{https://archive.ics.uci.edu/dataset/17/breast+cancer+wisconsin+diagnostic}{UCI} \\
+
+Rice (Cammeo and Osmancik) & Image Recognition & 3810 & 7 & 2 & 57.2/42.8 & \href{https://archive.ics.uci.edu/dataset/545/rice+cammeo+and+osmancik}{UCI} \\
+
+Connectionist Bench (Sonar, Mines vs.\ Rocks) & Physics and Chemistry (Signals and Frequencies) & 208 & 60 & 2 & 53.4/46.6 & \href{https://archive.ics.uci.edu/dataset/151/connectionist+bench+sonar+mines+vs+rocks}{UCI} \\
+
+Parkinson's & Medicine (Biomedical Voice Measurements) & 195 & 22 & 2 & 75.4/24.6 & \href{https://archive.ics.uci.edu/dataset/174/Parkinson's}{UCI} \\
+
+SpamBase & Computer Science (NLP -- Word Frequencies) & 4601 & 57 & 2 & 60.6/39.4 & \href{https://archive.ics.uci.edu/dataset/94/spambase}{UCI} \\
+
+Ionosphere & Physics and Chemistry (Radar Signals) & 351 & 34 & 2 & 64.1/35.9 & \href{https://archive.ics.uci.edu/dataset/52/ionosphere}{UCI} \\
+
+Glass Identification & Physics and Chemistry (Oxide Content) & 214 & 9 & 6 & 35.5/32.7/13.6/7.9/6.1/4.2 & \href{https://archive.ics.uci.edu/dataset/42/glass+identification}{UCI} \\
+
+Page Blocks & Computer Science (Image Processing) & 5473 & 10 & 5 & 89.8/6.0/2.1/1.6/0.5 & \href{https://archive.ics.uci.edu/dataset/78/page+blocks+classification}{UCI} \\
+
+Waveform Database Generator (Version 1) & Physics and Chemistry & 5000 & 21 & 3 & 33.9/33.1/32.9 & \href{https://archive.ics.uci.edu/dataset/107/waveform+database+generator+version+1}{UCI} \\
+
+Statlog Vehicle Silhouettes & Computer Vision (Shape Recognition) & 846 & 18 & 4 & 25.8/25.7/25.1/23.5 & \href{https://archive.ics.uci.edu/dataset/149/statlog+vehicle+silhouettes}{UCI} \\
+
+Statlog Image Segmentation & Computer Vision (Image Processing) & 2310 & 19 & 7 & 14.4/14.4/14.4/14.3/14.3/14.2/14.0 & \href{https://archive.ics.uci.edu/dataset/147/statlog+image+segmentation}{UCI} \\
+
+\bottomrule
+\end{tabularx}
+\end{table}
+
+For performance evaluation, each dataset was repeatedly divided into stratified train--test splits, with the training set containing \(80\%\) of the samples and the held-out test set containing the remaining \(20\%\). For each repeated split, the test set remained hidden from all models during training and hyperparameter selection.
+
+
+For readability, abbreviated dataset names are used in the subsequent result tables: Wine (Red Wine Quality), Breast Cancer (Breast Cancer Wisconsin (Diagnostic)), Rice (Rice (Cammeo and Osmancik)), Sonar (Connectionist Bench (Sonar, Mines vs.\ Rocks)), Glass (Glass Identification), Waveform (Waveform Database Generator (Version 1)), Vehicle (Statlog Vehicle Silhouettes), and Segmentation (Statlog Image Segmentation).
+
+
+\subsection{Classification Performance}
+
+Classification performance was assessed using macro-F1, which averages the class-wise F1-scores and gives equal weight to each class. This makes it suitable for both binary and multiclass datasets, especially when class distributions are imbalanced.
+
+Each experiment was repeated over \(R=10\) stratified \(80/20\) train--test splits. For each split, hyperparameters were tuned on the training set by grid search with 5-fold stratified cross-validation, using macro-F1 as the optimization criterion. After selecting the best configuration, each classifier was retrained on the full training split and evaluated on the held-out test split.
+
+For FCALC and FCALC(rand.), the class-wise scoring rule was included in the hyperparameter search. For FCALC(rand.), we additionally tuned the randomized candidate-generation parameters. The number of sampled groups per class was selected from
+\(\mathcal{I}\in\{10,20,30,40,50\}\), and the sampled group size was selected from
+\(\mathcal{S}\in\{1,\ldots,10\}\). The full hyperparameter grids for the remaining classifiers, including \(k\) for IPS-KNN and standard \(k\)-NN, are provided in the accompanying code repository; the FCALC(rand.) grid is stated here explicitly because \(\mathcal{I}\) and \(\mathcal{S}\) define the randomized candidate-generation procedure.
+
+For each classifier--dataset pair, we report the mean macro-F1 over the repeated splits together with the half-width of a \(95\%\) confidence interval. Given repeated macro-F1 scores \(f_1,\ldots,f_R\), the reported confidence interval half-width is computed as
+\begin{equation}
+    t_{0.975,R-1}\frac{s_f}{\sqrt{R}},
+\end{equation}
+where \(s_f\) is the sample standard deviation of the repeated scores. The macro-F1 percentages obtained by each classifier on each dataset are reported in Table~\ref{tab:f1}.
+
+\subsection{Classifier Sizes}
+A standardized metric for interpretability does not exist \cite{kirmse2014large, lipton2018mythos, molnar2025}, and models are often compared according to how easily a human can understand the reason behind a decision. Prior work has emphasized that interpretability is a multidimensional notion depending on the model class, user, and evaluation setting \cite{lipton2018mythos, murdoch2019definitions}.
+
+Despite this limitation, the size of a local explanation or decision structure can serve as a useful proxy for local interpretability: smaller explanations are generally easier to inspect and understand. In this paper, the size of each classifier is measured as the amount of information required to support an individual prediction.
+
+For FCALC-based algorithms, the size is taken as the product of the number of hypotheses and the number of features. In IPS-KNN, it corresponds to the dimensionality of the RRC. For \(k\)-NN, the size is \(k\) multiplied by the number of features. In Naive Bayes, Logistic Regression, and SVM, it is the number of stored parameters. In a single decision tree classifier, the size is the number of features used along the decision path. Although Random Forest and XGBoost are tree-based classifiers, their voting schemes make aggregating paths across all trees difficult to interpret, so we report instead the number of trees and the maximum depth. Since the size of IPS-KNN explanations and decision-tree paths can vary from one query object to another, both average and maximum values are reported.
+
+Since the experimental protocol uses repeated stratified train--test splits, classifier sizes are also summarized over the same repeated splits. For each classifier--dataset pair, Table~\ref{tab:classifier_sizes} reports the average size over repeated splits. For methods whose explanation size varies across query objects, the table reports the mean of the repeat-level average sizes and the mean of the repeat-level maximum sizes.
+
+
+
+\section{Results}
+
+Table~\ref{tab:f1} reports the mean macro-F1 scores and \(95\%\) confidence-interval half-widths obtained by the evaluated classifiers on the twelve datasets. IPS-KNN substantially outperforms the aggregation-based FCALC variants on most datasets and remains close to standard distance-weighted \(k\)-NN on several datasets. The confidence intervals also show that many differences between IPS-KNN and \(k\)-NN are small relative to the variability across repeated splits. Thus, the performance results should be interpreted together with the size and compactness results in Tables~\ref{tab:classifier_sizes} and~\ref{tab:rrc_compactness}.
+    
+
+
+\begin{table}[H]
+\caption{Macro-F1 score (\%, mean \(\pm\) 95\% confidence-interval half-width) of the proposed classifiers and the baseline methods over ten repeated stratified train--test splits. The highest mean value in each row is shown in bold.}
+\label{tab:f1}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\textwidth}{
+>{\raggedright\arraybackslash}p{2.1cm}
+*{10}{>{\centering\arraybackslash}X}
+}
+\toprule
+\textbf{Dataset} & \textbf{FCALC} & \textbf{FCALC (rand.)} & \textbf{IPS-KNN} & \textbf{k-NN} & \textbf{Naive Bayes} & \textbf{Logistic Regression} & \textbf{SVM} & \textbf{Decision Tree} & \textbf{Random Forest} & \textbf{XGBoost} \\
+\midrule
+Wine & \(79.9 \pm 2.4\) & \(77.8 \pm 1.7\) & \(79.5 \pm 2.2\) & \(79.5 \pm 2.4\) & \(72.8 \pm 2.2\) & \(73.8 \pm 2.4\) & \(75.6 \pm 2.4\) & \(74.1 \pm 2.3\) & \(\mathbf{81.5 \pm 2.6}\) & \(81.1 \pm 2.4\) \\
+Breast Cancer & \(90.9 \pm 2.2\) & \(93.7 \pm 2.9\) & \(95.3 \pm 2.1\) & \(95.1 \pm 1.9\) & \(92.0 \pm 2.2\) & \(\mathbf{96.6 \pm 2.0}\) & \(95.9 \pm 1.9\) & \(90.9 \pm 2.1\) & \(95.0 \pm 2.0\) & \(96.5 \pm 1.9\) \\
+Rice & \(92.9 \pm 0.7\) & \(92.8 \pm 0.7\) & \(93.0 \pm 0.5\) & \(93.0 \pm 0.5\) & \(91.5 \pm 0.7\) & \(93.3 \pm 0.7\) & \(\mathbf{93.4 \pm 0.8}\) & \(92.6 \pm 0.7\) & \(93.0 \pm 0.6\) & \(92.7 \pm 0.6\) \\
+Sonar & \(67.2 \pm 4.7\) & \(67.8 \pm 8.5\) & \(84.5 \pm 3.6\) & \(84.2 \pm 3.2\) & \(64.2 \pm 4.1\) & \(75.0 \pm 4.6\) & \(\mathbf{85.9 \pm 3.4}\) & \(72.6 \pm 5.1\) & \(78.4 \pm 5.1\) & \(81.7 \pm 4.4\) \\
+Parkinson's & \(73.0 \pm 4.8\) & \(71.2 \pm 7.3\) & \(91.7 \pm 3.1\) & \(\mathbf{93.1 \pm 2.1}\) & \(75.0 \pm 4.7\) & \(76.4 \pm 5.9\) & \(87.8 \pm 4.8\) & \(77.1 \pm 6.6\) & \(83.4 \pm 7.2\) & \(86.7 \pm 4.5\) \\
+SpamBase & \(83.0 \pm 0.8\) & \(75.3 \pm 9.4\) & \(91.7 \pm 0.7\) & \(91.8 \pm 0.8\) & \(81.9 \pm 0.7\) & \(92.3 \pm 0.6\) & \(93.0 \pm 0.5\) & \(92.3 \pm 0.6\) & \(95.2 \pm 0.4\) & \(\mathbf{95.4 \pm 0.4}\) \\
+Ionosphere & \(60.7 \pm 8.1\) & \(75.3 \pm 5.8\) & \(85.3 \pm 4.1\) & \(87.5 \pm 3.4\) & \(88.1 \pm 2.2\) & \(85.1 \pm 2.6\) & \(\mathbf{94.3 \pm 2.5}\) & \(86.5 \pm 3.8\) & \(92.9 \pm 2.5\) & \(92.6 \pm 3.0\) \\
+Glass & \(44.1 \pm 6.1\) & \(42.2 \pm 7.1\) & \(65.0 \pm 5.9\) & \(67.1 \pm 8.1\) & \(42.4 \pm 5.9\) & \(58.7 \pm 4.3\) & \(61.1 \pm 7.5\) & \(62.0 \pm 6.1\) & \(\mathbf{77.4 \pm 5.4}\) & \(72.6 \pm 5.8\) \\
+Page Blocks & \(61.1 \pm 5.3\) & \(62.8 \pm 4.6\) & \(83.4 \pm 1.8\) & \(84.0 \pm 2.4\) & \(56.1 \pm 4.2\) & \(81.0 \pm 2.8\) & \(77.3 \pm 3.0\) & \(81.6 \pm 2.7\) & \(86.9 \pm 1.4\) & \(\mathbf{87.0 \pm 1.7}\) \\
+Waveform & \(74.5 \pm 1.1\) & \(79.7 \pm 3.0\) & \(84.1 \pm 0.9\) & \(85.2 \pm 0.8\) & \(79.9 \pm 1.0\) & \(\mathbf{86.9 \pm 0.8}\) & \(86.6 \pm 0.7\) & \(75.9 \pm 1.0\) & \(85.0 \pm 0.7\) & \(85.4 \pm 0.7\) \\
+Vehicle & \(52.0 \pm 2.0\) & \(48.5 \pm 4.7\) & \(72.6 \pm 2.2\) & \(72.8 \pm 2.3\) & \(43.9 \pm 3.9\) & \(80.6 \pm 2.6\) & \(\mathbf{83.5 \pm 1.5}\) & \(71.0 \pm 1.5\) & \(75.9 \pm 1.7\) & \(78.2 \pm 1.2\) \\
+Segmentation & \(84.4 \pm 1.4\) & \(84.5 \pm 1.1\) & \(94.9 \pm 1.0\) & \(94.9 \pm 1.0\) & \(78.3 \pm 1.0\) & \(95.3 \pm 0.3\) & \(95.4 \pm 0.6\) & \(94.9 \pm 0.8\) & \(97.1 \pm 0.5\) & \(\mathbf{97.7 \pm 0.6}\) \\
+
+\bottomrule
+\end{tabularx}
+\end{table}
+
+
+
+Table~\ref{tab:classifier_sizes} reports classifier sizes, used here as a proxy for local interpretability. IPS-KNN produces substantially smaller local explanations than the FCALC-based aggregation methods and standard \(k\)-NN across all datasets. Decision trees are often the closest competitor in terms of average local explanation size, but their predictive performance is generally lower than that of IPS-KNN in Table~\ref{tab:f1}.
+
+
+\begin{table}[H]
+\caption{Classifier sizes for the proposed classifiers and the baseline methods on the datasets listed in Table~\ref{tab:datasets}. Sizes are averaged over the repeated stratified train--test splits. For Random Forest and XGBoost, \(n\) denotes the number of trees in the ensemble and \(h\) denotes the maximum depth. For IPS-KNN and Decision Tree, the avg columns report the mean of the repeat-level average local explanation sizes, and the max columns report the mean of the repeat-level maximum local explanation sizes. The smallest average size among the interpretable local models in each row is shown in bold.}
+\label{tab:classifier_sizes}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\textwidth}{
+>{\raggedright\arraybackslash}p{2.0cm}
+>{\centering\arraybackslash}p{1.0cm}
+>{\centering\arraybackslash}p{1.2cm}
+>{\centering\arraybackslash}p{0.7cm}
+>{\centering\arraybackslash}p{0.7cm}
+>{\centering\arraybackslash}p{0.8cm}
+>{\centering\arraybackslash}p{0.9cm}
+>{\centering\arraybackslash}p{1.1cm}
+>{\centering\arraybackslash}p{0.9cm}
+>{\centering\arraybackslash}p{0.7cm}
+>{\centering\arraybackslash}p{0.7cm}
+>{\centering\arraybackslash}p{0.6cm}
+>{\centering\arraybackslash}p{0.6cm}
+>{\centering\arraybackslash}p{0.6cm}
+>{\centering\arraybackslash}p{0.6cm}
+}
+\toprule
+\textbf{Dataset} & \textbf{FCALC} & \textbf{FCALC (rand.)} & \multicolumn{2}{c}{\textbf{IPS-KNN}} & \textbf{k-NN} & \textbf{Naive Bayes} & \textbf{Logistic Regression} & \textbf{SVM} & \multicolumn{2}{c}{\textbf{Decision Tree}} & \multicolumn{2}{c}{\textbf{Random Forest}} & \multicolumn{2}{c}{\textbf{XGBoost}} \\
+\cmidrule(lr){4-5}
+\cmidrule(lr){10-11}
+\cmidrule(lr){12-13}
+\cmidrule(lr){14-15}
+& & & \textbf{avg} & \textbf{max} & & & & & \textbf{avg} & \textbf{max} & \textbf{n} & \textbf{h} & \textbf{n} & \textbf{h} \\
+\midrule
+Wine & 14069 & 814 & 7.3 & 11 & 518.1 & 46 & 12 & 9026 & \textbf{6.4} & 9.6 & 160 & 17.9 & 190 & 5 \\
+Breast Cancer & 13650 & 2100 & 5.1 & 11.4 & 216 & 122 & 31 & 589.4 & \textbf{4.4} & 5.9 & 180 & 9 & 180 & 3.8 \\
+Rice & 21336 & 546 & 4.1 & 7 & 358.4 & 30 & 8 & 8 & \textbf{3.4} & 4.5 & 180 & 5.5 & 85 & 3.2 \\
+Sonar & 9960 & 4680 & 4.6 & 7.9 & 90 & 242 & 61 & 7169.5 & \textbf{4.4} & 6.3 & 180 & 8.5 & 150 & 4.2 \\
+Parkinson's & 3432 & 1100 & \textbf{3.4} & 8 & 28.6 & 90 & 23 & 1462.5 & 3.5 & 5.2 & 160 & 7 & 155 & 4.2 \\
+SpamBase & 209760 & 3648 & 28.0 & 57 & 638.4 & 230 & 58 & 35949.8 & \textbf{9.1} & 10 & 280 & 41.7 & 200 & 4.6 \\
+Ionosphere & 9520 & 2720 & 7.4 & 26 & 68 & 138 & 35 & 2917.5 & \textbf{5.5} & 8 & 220 & 7.5 & 135 & 4.4 \\
+Glass & 1539 & 1620 & \textbf{4.7} & 7.5 & 13.5 & 38 & 10 & 527.8 & 4.9 & 7.1 & 200 & 13 & 170 & 4 \\
+Page Blocks & 43780 & 1850 & \textbf{5.4} & 9.9 & 31 & 42 & 11 & 11 & 7.2 & 8.6 & 160 & 19 & 100 & 4.8 \\
+Waveform & 84000 & 2709 & 13.0 & 21 & 1230.6 & 86 & 22 & 10149 & \textbf{7.3} & 8.8 & 280 & 18.7 & 180 & 3.6 \\
+Vehicle & 12168 & 2592 & \textbf{6.0} & 15.1 & 66.6 & 74 & 19 & 7256.2 & 6.7 & 10.5 & 200 & 16.7 & 180 & 3.8 \\
+Segmentation & 30024 & 4032 & 4.7 & 11.8 & 18 & 74 & 19 & 6214.6 & \textbf{4.4} & 9.4 & 220 & 19 & 200 & 3.8 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+To quantify the compactness of IPS-KNN explanations, Table~\ref{tab:rrc_compactness} reports the size of the full Reason for Classification (RC), which is equal to the number of dataset features, together with the average and maximum size of the Reduced Reason for Classification (RRC). The average retention ratio RRC/RC shows how strongly the reduction procedure compresses local explanations relative to the full-dimensional RC. The RRC is substantially smaller than the RC on most datasets, although the amount of reduction varies across datasets because some local neighborhoods require more feature intervals than others to preserve the same supporting set.
+
+\begin{table}[H]
+\caption{Compactness of IPS-KNN explanations over the repeated stratified train--test splits. The full Reason for Classification (RC) always contains one interval per feature, while the Reduced Reason for Classification (RRC) retains only the intervals needed to preserve the same supporting set. Average RRC sizes and RRC/RC ratios are computed over all test explanations from the repeated splits; the maximum RRC size is the largest observed value.}
+\label{tab:rrc_compactness}
+\centering
+\begin{tabular}{lcccc}
+\toprule
+Dataset & RC size & Avg. RRC size & Max. RRC size & Avg. RRC/RC ratio \\
+\midrule
+Wine & 11 & 7.32 & 11 & 0.67 \\
+Breast Cancer & 30 & 5.06 & 18 & 0.17 \\
+Rice & 7 & 4.10 & 7 & 0.59 \\
+Sonar & 60 & 4.61 & 9 & 0.08 \\
+Parkinson's & 22 & 3.41 & 16 & 0.16 \\
+SpamBase & 57 & 28.04 & 57 & 0.49 \\
+Ionosphere & 34 & 7.40 & 29 & 0.22 \\
+Glass & 9 & 4.68 & 9 & 0.52 \\
+Page Blocks & 10 & 5.36 & 10 & 0.54 \\
+Waveform & 21 & 12.97 & 21 & 0.62 \\
+Vehicle & 18 & 6.01 & 16 & 0.33 \\
+Segmentation & 19 & 4.72 & 18 & 0.26 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Discussion}
+
+The experimental results support the interpretation of IPS-KNN as an interpretable lazy classifier that preserves much of the predictive behavior of distance-weighted \(k\)-NN while changing the form of the local explanation. Standard \(k\)-NN is already locally inspectable through its neighbors, labels, and distances. However, when \(k\) or the number of features is large, this explanation consists of many object-specific feature values. IPS-KNN summarizes the local evidence as a single interval-based description and then reduces it through the RRC procedure.
+
+Table~\ref{tab:f1} shows that IPS-KNN performs substantially better than the aggregation-based IPS baselines. IPS-KNN obtains higher mean macro-F1 than FCALC(rand.) on all twelve datasets and higher mean macro-F1 than deterministic FCALC on eleven of the twelve datasets. The only exception is Red Wine Quality, where deterministic FCALC has a slightly higher mean macro-F1, but the confidence intervals overlap. This supports the main design choice of IPS-KNN: selecting a single distance-guided local description can be more effective than
+aggregating many candidate descriptions, both in terms of compactness and classification quality.
+
+IPS-KNN is closely related to standard distance-weighted \(k\)-NN because it preserves the nearest-neighbor basis of the decision rule. It is therefore not expected to dominate \(k\)-NN in predictive performance. The mean macro-F1 values of IPS-KNN and \(k\)-NN are identical or very close on most datasets, and their confidence intervals overlap throughout Table~\ref{tab:f1}. This indicates that replacing the standard \(k\)-NN voter set by the IPS closure-based voter set usually does not substantially change predictive performance. The main difference is explanatory: standard \(k\)-NN explains a prediction through a set of neighbors, whereas IPS-KNN provides an RC hyper-rectangle, an RRC, and local feature-importance scores.
+
+The multiclass datasets show the same pattern. On Glass, Page Blocks, Waveform, Vehicle, and Segmentation, IPS-KNN remains close to standard \(k\)-NN in mean macro-F1. This is expected, because \(k\)-NN itself naturally supports multiclass classification and the IPS-KNN formulation preserves the local nearest-neighbor principle. The purpose of the multiclass formulation is therefore not to create a fundamentally different decision mechanism, but to make the interval-based explanation mechanism applicable beyond binary classification. Table~\ref{tab:classifier_sizes} also shows that, on these multiclass datasets, IPS-KNN explanations are much smaller than the corresponding \(k\)-NN explanation sizes.
+
+The remaining baselines illustrate the usual trade-off between predictive performance and interpretability. Ensemble and kernel-based methods often achieve the highest macro-F1 values: Random Forest or XGBoost performs best on datasets such as Wine, SpamBase, Glass, Page Blocks, and Segmentation, while SVM performs best on Rice, Sonar, Ionosphere, and Vehicle. These methods, however, do not provide the same type of compact interval-based local explanation. IPS-KNN outperforms Naive Bayes on eleven of the twelve datasets and obtains higher mean macro-F1 than the single Decision Tree on nine datasets, with equal mean performance on Segmentation. Decision trees are often competitive with IPS-KNN in explanation size, but this compactness can come with lower predictive performance.
+
+Table~\ref{tab:classifier_sizes} highlights the compactness of IPS-KNN relative to the other lazy classifiers. IPS-KNN explanations are much smaller than the FCALC and FCALC(rand.) explanation structures on all datasets. They are also much smaller than standard \(k\)-NN explanations when \(k\) is large, because \(k\)-NN requires inspecting \(k\) neighbors with all feature values, whereas IPS-KNN returns a reduced set of interval constraints. Thus, the closest predictive comparator is standard \(k\)-NN, while the closest compact interpretable comparator is the single Decision Tree.
+
+Table~\ref{tab:rrc_compactness} gives a more direct view of the reduction from RC to RRC. The average RRC/RC ratio ranges from \(0.08\) on Sonar to \(0.67\) on Red Wine Quality. On Breast Cancer, Sonar, Parkinson's, Ionosphere, Vehicle, and Segmentation, the average RRC retains roughly one third or less of the full-dimensional RC. On datasets such as Wine, Rice, Waveform, Page Blocks, Glass, and SpamBase, the reduction is more moderate, indicating that more feature intervals are needed to preserve the same supporting set. This variability is expected because some local neighborhoods require more feature constraints than others to keep the same local evidence.
+
+Class imbalance is relevant for lazy local classifiers because majority-class objects may be more likely to appear in the nearest-neighbor set and in the closure-based voter set. In principle, this can affect both the weighted vote and the interval description used for explanation. For this reason, the experiments use stratified splits and macro-F1, which gives equal weight to each class. The results do not show a simple monotonic relation between imbalance and the difference between IPS-KNN and \(k\)-NN: for example, Page Blocks and SpamBase are strongly imbalanced but show small differences between the two methods, while some less imbalanced datasets show larger differences. Thus, the present results do not indicate a systematic failure under imbalance, but imbalance remains an important factor for future variants, such as class-aware weighting or balanced neighbor selection.
+
+Overall, IPS-KNN offers a compromise between predictive performance and local interpretability. It does not consistently outperform the strongest ensemble or kernel baselines, and it is not designed to be statistically superior to standard \(k\)-NN in macro-F1. Its contribution is that it keeps competitive local predictive behavior while replacing neighbor-list explanations and aggregation-based IPS hypothesis sets with compact interval-based explanations that can be further reduced and assigned local feature-importance scores.
+
+\section{Conclusion}
+This paper introduced and evaluated IPS-KNN as a single-description lazy classifier for numerical data within the framework of Interval Pattern Structures. In contrast to aggregation-based IPS baselines such as FCALC and FCALC(rand.), IPS-KNN classifies a query object through a single distance-guided local interval description that can be used directly as an explanation.
+
+The proposed IPS-KNN framework develops our earlier workshop version in several directions. In particular, it is formulated for multiclass classification and equipped with the \textit{Reason for Classification} (RC) hyper-rectangle as a local explanation, and further refined through the \textit{Reduced Reason for Classification} (RRC) and feature importance scores derived from information gain. These additions make it possible not only to classify a query object, but also to explain the decision through a compact subset of relevant interval constraints.
+
+The experimental evaluation on twelve numerical datasets showed that IPS-KNN generally outperforms both FCALC baselines while remaining competitive with standard distance-weighted \(k\)-NN and several strong classical baselines. At the same time, the resulting local explanations are substantially smaller than those produced by FCALC-based methods and considerably easier to inspect than the decision mechanisms of ensemble models and kernel-based classifiers. The additional compactness analysis further shows that the reduced explanations often retain only a fraction of the intervals present in the full-dimensional RC, strengthening the interpretability case for IPS-KNN.
+
+Overall, the results indicate that IPS-KNN provides a useful compromise between predictive performance and local interpretability for numerical data. Future work may investigate alternative distance measures, additional strategies for selecting explanatory voters, and applications to larger and more complex real-world datasets.
+
+
+% To print the credit authorship contribution details
+\printcredits
+
+\section*{Acknowledgements}
+Support from the Basic Research Program of HSE University is gratefully acknowledged (HSE-BR-2025-025).
+This research was supported in part through computational resources of HPC facilities at HSE University.
+The authors thank Andrey Divavin for his help in the early stages of this research.
+
+
+\section*{Declaration of competing interest}
+The authors declare that they have no known competing financial interests or personal relationships that could have appeared to influence the work reported in this paper.
+
+\section*{Data availability}
+The datasets used in this study are publicly available from the sources listed in Table~\ref{tab:datasets}. The source code and materials used to reproduce the experiments are available in the public repository referenced in Section~\ref{section_experiments}.
+
+\section*{Declaration of generative AI and AI-assisted technologies in the manuscript preparation process}
+
+During the preparation of this work, the authors used ChatGPT in order to rephrase and improve the clarity of the manuscript text. After using this tool, the authors reviewed and edited the content as needed and take full responsibility for the content of the published article.
+
+
+
+
+%% Loading bibliography style file
+% \bibliographystyle{model1-num-names}
+\bibliographystyle{cas-model2-names}
+
+% Loading bibliography database
+\bibliography{mybib}
+
+
+\end{document}
+
