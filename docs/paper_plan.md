@@ -455,3 +455,167 @@ If another AI chat is asked to help:
 - ask it to preserve the modest claim;
 - ask it to distinguish LazyFCA ranking from IPS-KNN and randomized LazyFCA;
 - ask it to avoid claiming state-of-the-art accuracy.
+
+## Q2 Revision Candidate Checklist From Supervisor/Claude Review
+
+Use this as the cleaned working checklist before targeting a stronger Q2
+journal. Items that would overclaim, distract from the compact-ranking story,
+or require fragile statistical testing have been removed.
+
+### Title and Abstract
+
+- Consider a clearer title, but keep it broad enough to match the paper's
+  actual contribution: ranked top-k LazyFCA/interval-pattern candidate
+  aggregation.
+- Rewrite the abstract so the first half emphasizes the intuitive problem:
+  LazyFCA/interval-pattern lazy classifiers generate too many candidates,
+  making explanations bulky and aggregation noisy.
+- State the solution earlier and more plainly:
+  global top-k ranking by locality and purity.
+- Move detailed numerical results such as `k=1`, `k=3`, and compactness
+  thresholds toward the end of the abstract.
+- Add one sentence explaining why compact candidate sets matter for a
+  practicing ML/DM or interpretable-ML reader.
+- Avoid claiming that the method is a universal state-of-the-art classifier;
+  frame it as a compact candidate-selection and aggregation method.
+
+### Introduction
+
+- Add one simple illustrative example showing how an interval candidate is
+  obtained from a query object and a source object.
+- Separate the motivation into clearer paragraphs:
+  the problem of too many candidates, then the existing method context.
+- Add a compact paragraph summarizing related approaches:
+  deterministic FCALC, randomized FCALC, IPS-KNN, and associative
+  classification.
+- Add explicit goals/contributions in the introduction:
+  study whether query-source candidates become useful after ranking; evaluate
+  compactness versus quality under global pooled top-k; compare with
+  deterministic FCALC, randomized FCALC, and IPS-KNN.
+- Distinguish the main contribution from secondary analytical contributions.
+
+### Related Work and Novelty
+
+- Sharpen the `Gap Addressed by This Work` subsection.
+- Explicitly state what is absent from deterministic FCALC:
+  explicit global pooled ranking for compactness.
+- Explicitly state what is absent from IPS-KNN:
+  it changes the classifier family and does not rank the LazyFCA candidate
+  pool.
+- Add 2-3 concise novelty bullets in a more ML-paper style.
+- Re-rank contributions by importance:
+  main method contribution first, then metric study, compactness analysis,
+  singleton interpretation, and baseline comparison.
+- Keep IPS-KNN as an external compact interval-pattern baseline, not as the
+  main definition of success or failure.
+
+### Method Formalization
+
+- Add a small workflow diagram:
+  query -> candidate generation -> metric computation -> sorting -> top-k ->
+  vote.
+- Consider moving dense notation such as `p`, `n`, `M`, and `rho_c` into a
+  notation table or boxed notation block.
+- Add a small tie-breaking example for the lexicographic prediction rule using
+  a few classes and retained candidates.
+- Explain why retained-candidate count is the primary vote and summed ranking
+  score is only a tie-breaker.
+- Simplify dense method paragraphs where possible without weakening the
+  formalism.
+
+### Ranking Metrics Section
+
+- Add a short opening sentence to the metrics section:
+  the main focus is locality/purity metrics, while the remaining metrics are
+  exploratory baselines.
+- Add a compact metric-family table with formula, intuition, and expected
+  behavior at small `k`.
+- Keep the core ranking definitions self-contained in the main paper; only move
+  genuinely secondary formulas if the target venue allows appendices.
+- Keep the redundant-metric note:
+  `query_similarity = query_numeric_similarity = interval_tightness`,
+  `precision = supporter_opposer_ratio`, `information_gain = g_test`,
+  and `stability = robustness` under the compact-budget analysis.
+- Keep `query_weighted_precision` as the primary reported compact metric unless
+  a later analysis gives a stronger fixed metric.
+- Do not foreground `delta_stability` or stability-inspired metrics in the main
+  compact results unless a new analysis shows they are robust under small `k`.
+- Mention that all metrics were evaluated, but show only the selected
+  nonredundant, inspectable subset in the main metric-comparison plot.
+
+### Experiments and Results
+
+- Add a concise subsection titled `Hyperparameters and Implementation Details`.
+- Briefly state the language/frameworks, configs, result CSVs, and plotting
+  scripts, without turning implementation structure into a main contribution.
+- Briefly mention whether candidate evaluation has any optimizations or is a
+  direct streamed implementation.
+- State explicitly that choosing `k*` from test results is a post-hoc
+  upper-bound compactness analysis, not an operational tuning procedure.
+- Report mean macro-F1 over 10 randomized splits together with interval
+  half-widths; use these intervals descriptively instead of adding formal
+  statistical tests.
+- Emphasize typical compactness numbers in the Results narrative:
+  median selected `k`, maximum selected `k`, smallest `k` within 1/3/5% of best,
+  and compression ratio.
+- Ensure the compact-metric plot keeps the same dataset order as the tables.
+- Keep query-weighted precision visually prominent in the compact-metric plot.
+- Do not add full all-metric tables or plots to the main paper; keep the main
+  results focused on selected metrics and compact behavior.
+
+### Interpretability and Examples
+
+- Keep one clear interpretability example with concrete feature intervals, such
+  as the Rice example if it is already in the draft.
+- Explain how a human user would inspect the retained intervals and
+  source-query evidence.
+- Emphasize that retained candidates are local evidence, not global rules.
+- Mention prototype-like interpretation for singleton or near-singleton
+  candidates, while avoiding the claim that they are broadly supported formal
+  hypotheses.
+- If using an applied example such as credit scoring or medical diagnostics,
+  keep it illustrative and avoid unsupported domain claims.
+
+### Discussion, Limitations, and Future Work
+
+- Add a paragraph distinguishing explanation-size reduction from
+  generation-time reduction.
+- Add a concise scalability limitation:
+  streaming helps memory but does not remove the asymptotic cost of candidate
+  generation.
+- Mention possible optimizations as future work, not as solved contributions:
+  sampling, approximate coverage evaluation, early pruning of weak candidates,
+  and indexing for interval coverage.
+- Treat sensitivity to feature-range normalization and class imbalance as
+  limitations or threats to validity unless new experiments are added.
+- Add future work on learnable ranking functions instead of fixed metrics.
+- Add future work on faster candidate evaluation.
+- Add future work on non-numerical or richer pattern structures.
+- Add future work on ranking candidates generated by randomized LazyFCA, if
+  framed as complementary rather than required for this paper.
+
+### Structure and Style
+
+- Split long paragraphs in Background, Related Work, and Discussion.
+- Simplify heavy sentences by splitting them into shorter sentences.
+- Remove repeated phrases such as `ranking-and-pruning layer over local
+  interval-pattern candidate classifiers` when a shorter phrase is enough.
+- Keep the paper's claim modest but confident:
+  compact global top-k ranking is useful inside LazyFCA candidate aggregation;
+  it is not a universal state-of-the-art classifier.
+- Make sure all TODOs are removed before submission.
+
+### Reproducibility and Bibliography
+
+- Add a short reproducibility paragraph describing the public repository:
+  configuration files, result CSV summaries, plotting scripts, and imported
+  baseline files.
+- Check whether generated figures should be copied from
+  `experiments/results/...` into a tracked `paper/figures/` folder before
+  submission.
+- Clean bibliography metadata, especially entries currently using arXiv data
+  when published venue data exist.
+- Update the accepted Tomat FCALC/randomized FCALC/IPS-KNN paper citation with
+  final publication metadata before submission.
+- Avoid committing downloaded PDFs or large generated result folders unless
+  intentionally included as supplementary material.

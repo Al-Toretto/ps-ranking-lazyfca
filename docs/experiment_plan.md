@@ -201,19 +201,33 @@ Vanilla LazyFCA is a horizontal reference, not the start of the top-k curve.
 
 ## Metrics
 
-Primary paper metrics should probably include:
+All 36 enabled metrics were computed for discovery, but the paper should not
+present them as independent competitors. In the compact-budget analysis
+(`k <= 10`, excluding churn), several metrics are redundant or nearly
+redundant:
 
-- `precision`;
-- `log_odds_ratio`;
-- `query_similarity`;
-- `query_weighted_precision`;
-- `query_weighted_log_odds_ratio`;
-- `wracc`;
-- possibly `interval_tightness` and `delta_stability` if they remain strong.
+- exact same prediction curves:
+  - `query_similarity` = `query_numeric_similarity` = `interval_tightness`;
+  - `precision` = `supporter_opposer_ratio`;
+  - `information_gain` = `g_test`;
+  - `stability` = `robustness`.
+- near-identical prediction curves:
+  - `simplicity_prior` is almost identical to `interval_tightness`;
+  - `error_rate` is almost identical to `fp`.
 
-The full config may compute all metrics for discovery, but the paper should
-not discuss every metric in equal detail. Group them into families and report
-the strongest or most interpretable representatives.
+For the paper, use a small nonredundant compact-metric display set:
+
+- `interval_tightness` as the locality/tightness representative;
+- `query_weighted_precision` as the primary reported metric;
+- `precision` as the purity-only reference;
+- `description_volume` as the geometric-size reference;
+- `log_odds_ratio` and `query_weighted_log_odds_ratio` as support-sensitive
+  purity references;
+- `random_topk` as the pruning sanity baseline in plots.
+
+Do not foreground `delta_stability` in the main results: under `k <= 10` it is
+not robust enough for the compact explanation story, despite having occasional
+dataset-level wins.
 
 ## Evaluation Metrics
 
