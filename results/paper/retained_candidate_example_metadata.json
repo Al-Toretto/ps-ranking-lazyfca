@@ -1,0 +1,9 @@
+{
+  "dataset": "rice",
+  "seed": 1998,
+  "query_index": 122,
+  "true_class": 1,
+  "metric": "query_weighted_precision",
+  "k": 5,
+  "predicted_class": 1
+}

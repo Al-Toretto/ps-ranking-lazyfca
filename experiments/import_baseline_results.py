@@ -55,7 +55,7 @@ METHOD_MAP = {
     "fcalc_rand": "fcalc_randomized",
     "ips_knn": "ips_knn",
 }
-DEFAULT_CLASSIFIERS = ["fcalc", "fcalc_rand", "ips_knn"]
+DEFAULT_CLASSIFIERS = ["all"]
 
 
 def ci95_half_width(values: pd.Series) -> float:
@@ -191,11 +191,16 @@ def summarize_imported(rows: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(summaries).sort_values(["dataset", "method"])
 
 
-def build_paper_comparison(run_dir: Path, imported_summary: pd.DataFrame) -> pd.DataFrame:
+def build_paper_comparison(
+    run_dir: Path,
+    imported_summary: pd.DataFrame,
+    configured_datasets: set[str],
+) -> pd.DataFrame:
     summary_path = run_dir / "summary_by_dataset_metric.csv"
     frames = []
     if summary_path.exists():
         ranking = pd.read_csv(summary_path)
+        ranking = ranking[ranking["dataset"].isin(configured_datasets)].copy()
         ranking = ranking[ranking["k"].notna()].copy()
         if not ranking.empty:
             best_idx = ranking.groupby(["dataset", "method", "metric"], dropna=False)["primary_f1_mean"].idxmax()
@@ -217,7 +222,7 @@ def parse_args() -> argparse.Namespace:
         "--classifiers",
         nargs="+",
         default=DEFAULT_CLASSIFIERS,
-        help="Imported classifiers to keep, or 'all'. Default: fcalc fcalc_rand ips_knn.",
+        help="Imported classifiers to keep, or 'all'. Default: all.",
     )
     return parser.parse_args()
 
@@ -232,7 +237,7 @@ def main() -> None:
     configured_datasets = load_configured_datasets(config_path)
     rows = imported_rows(imported_dir, args.classifiers, configured_datasets)
     summary = summarize_imported(rows)
-    comparison = build_paper_comparison(run_dir, summary)
+    comparison = build_paper_comparison(run_dir, summary, configured_datasets)
 
     rows.to_csv(run_dir / "imported_baseline_results.csv", index=False)
     summary.to_csv(run_dir / "imported_baseline_summary.csv", index=False)

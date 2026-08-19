@@ -1,0 +1,31 @@
+{
+  "source_run_dir": "experiments/results/ranking_macro_f1_10splits",
+  "datasets": [
+    "breast_cancer",
+    "ionosphere",
+    "parkinsons",
+    "rice",
+    "sonar",
+    "spambase",
+    "waveform",
+    "vehicle",
+    "page_blocks",
+    "glass",
+    "image_segmentation"
+  ],
+  "seeds": [
+    1998,
+    1999,
+    2000,
+    2001,
+    2002,
+    2003,
+    2004,
+    2005,
+    2006,
+    2007
+  ],
+  "primary_metric": "macro-F1",
+  "ranking_metric_reported_in_main_tables": "query_weighted_precision",
+  "compact_budget": "k <= 10"
+}

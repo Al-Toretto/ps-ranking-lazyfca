@@ -1,176 +1,157 @@
-# Ranked LazyFCA Pattern Hypotheses
+# Top-k Ranking of Lazy Interval-Pattern Classifier Candidates
 
-This repository contains the cleaned working code and paper draft for a PhD
-paper on ranking and pruning LazyFCA pattern-structure hypotheses for compact
-interpretable classification.
+This repository contains the code, configuration, and compact result artifacts
+for experiments on ranking and pruning local interval-pattern classifier
+candidates.
 
-Working title:
+The method keeps the standard source-query candidate pool used in lazy
+interval-pattern classification, ranks candidates from all classes in one
+global pool, retains only the top `k`, and predicts by majority vote among the
+retained candidates with deterministic tie-breaks.
 
-`Compact Local Classification with Ranked Pattern-Structure Hypotheses`
+## Repository Layout
 
-## What This Project Studies
+- `lazyfca/`: LazyFCA-style source-query candidate generation, metric
+  computation, and explanations.
+- `experiments/run_experiments.py`: incremental experiment runner for ranked
+  top-k and random top-k.
+- `experiments/config.yaml`: paper-level configuration: eleven numerical
+  datasets, seeds `1998..2007`, macro-F1, and the retained-candidate grid.
+- `experiments/import_baseline_results.py`: imports preserved FCALC,
+  FCALC(rand.), IPS-KNN, and classical ML baseline summaries.
+- `experiments/export_paper_artifacts.py`: exports compact public summaries and
+  retained-candidate examples.
+- `experiments/generate_paper_figures.py`: regenerates the two plotted
+  macro-F1 figures from `results/paper/topk_plot_data.csv`.
+- `experiments/imported_baselines/`: preserved baseline result summaries from
+  the related interval-pattern benchmark.
+- `baselines/interval_lazy_methods/`: cleaned FCALC, FCALC(rand.), and IPS-KNN
+  implementation code kept for provenance and optional reruns.
+- `datasets/`: local dataset location. Data files are not tracked by default.
+- `results/paper/`: compact public result artifacts used to check the reported
+  tables, examples, and figures.
 
-LazyFCA avoids constructing a full concept or pattern-concept lattice by
-generating local hypotheses for each query object. In interval pattern
-structures, these hypotheses are interpretable interval descriptions over
-features. The problem is that one query can generate many hypotheses, and
-counting all of them can be noisy, harmful, and difficult to interpret.
+The manuscript source files and private writing notes are intentionally not
+tracked in this public experiment repository.
 
-The main method in this repository is global pooled top-k ranking:
+## Installation
 
-1. Generate LazyFCA hypotheses for every class.
-2. Put all class-specific hypotheses into one common pool.
-3. Rank the pool by an importance metric.
-4. Keep only the top `k` hypotheses.
-5. Predict by retained class counts, with score/prior/label tie-breaks.
+Python 3.10 or newer is recommended.
 
-The paper asks whether a small ranked subset can preserve or improve macro-F1
-while making the local explanation much smaller.
-
-## Repository Map
-
-- `lazyfca/`
-  Core LazyFCA implementation, explanations, classifiers, metrics, and metric
-  calculators.
-
-- `experiments/`
-  Config-driven incremental experiment runner.
-
-- `experiments/config.yaml`
-  Main editable experiment configuration. It controls datasets, seeds, metrics,
-  methods, output paths, and k-grid options.
-
-- `paper/`
-  LaTeX draft, bibliography, and AI-assistant context for literature review and
-  writing.
-
-- `docs/project_context.md`
-  Full technical/research handoff. Read this first in new chats.
-
-- `docs/README.md`
-  Short index explaining which context files to send to different AI chats.
-
-- `docs/experiment_plan.md`
-  Full experimental plan, including methods, outputs, validation checks, and
-  baseline-extension strategy.
-
-- `docs/paper_plan.md`
-  Full paper-writing plan, including positioning, section-by-section content,
-  claims to make, claims to avoid, and how to discuss baselines.
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install --upgrade pip
+python3 -m pip install -r requirements.txt
+```
 
 ## Data
 
-Dataset files are expected locally under `datasets/`, using the paths in
-`experiments/config.yaml`. They are ignored by git by default because
-their redistribution status should be checked separately.
+The paper-level run uses eleven public numerical datasets:
 
-Current configured datasets:
+`breast_cancer`, `ionosphere`, `parkinsons`, `rice`, `sonar`, `spambase`,
+`waveform`, `vehicle`, `page_blocks`, `glass`, and `image_segmentation`.
 
-- `breast_cancer`
-- `churn`
-- `page_blocks`
-- `parkinsons`
-- `rice`
-- `sonar`
-- `spambase`
-- `waveform`
-- `ionosphere`
-- `image_segmentation`
-- `vehicle`
-- `glass`
+Place the dataset files under `datasets/` using the filenames listed in
+`datasets/README.md` and `experiments/config.yaml`. The data files are ignored
+by git so their redistribution terms can be handled separately.
 
-## Running Experiments
+The optional `churn` entry remains in the config for local experiments, but it
+is disabled by default and is not part of the reported numerical benchmark.
 
-Smoke run:
+## Existing Result Artifacts
 
-```bash
-python3 experiments/run_experiments.py --smoke --run-name smoke
-```
-
-Single dataset:
-
-```bash
-python3 experiments/run_experiments.py --run-name trial_rice --datasets rice --seeds 1998
-```
-
-Full configured run:
-
-```bash
-python3 experiments/run_experiments.py --run-name ranking_macro_f1_10splits
-```
-
-Import preserved FCALC/randomized FCALC/IPS-KNN baselines and build the paper
-comparison table after the ranking run:
-
-```bash
-python3 experiments/import_baseline_results.py --run-name ranking_macro_f1_10splits
-```
-
-The runner is incremental. Completed chunks are skipped unless `--force` is
-used.
-
-Results are written under:
+The compact public artifacts are in:
 
 ```text
-experiments/results/<run_name>/
+results/paper/
 ```
 
-This directory is ignored by git.
+Useful files:
 
-Important output files after both commands:
+- `summary_by_dataset_metric.csv`: macro-F1 mean/std/95% CI for all ranked
+  metrics and all `k` values.
+- `topk_plot_data.csv`: plot-ready subset of the summary.
+- `table_qwp_fixed_k.csv`: query-weighted precision at `k = 1, 3, 5, 10`.
+- `table_compact_budget_comparison.csv`: query-weighted precision top-k,
+  random top-k, FCALC, FCALC(rand.), and IPS-KNN.
+- `table_classical_context.csv`: compact ranked method and classical ML
+  baselines.
+- `table_qwp_compactness.csv`: compactness summary for query-weighted
+  precision.
+- `retained_candidates_rice_seed1998_query122_top5.csv`: retained-candidate
+  example.
+- `figures/`: regenerated plotting outputs.
 
-- `topk_results.csv`: per-split ranking results;
-- `summary_by_dataset_metric.csv`: split-level mean/std/95% CI by dataset,
-  method, metric, and `k`;
-- `topk_plot_data.csv`: compact plot-ready version of the summary;
-- `imported_baseline_results.csv`: preserved FCALC/randomized FCALC/IPSKNN
-  rows mapped to this repository's dataset names;
-- `imported_baseline_summary.csv`: mean/std/95% CI for imported baselines;
-- `paper_comparison_macro_f1.csv`: ranking best-per-metric rows plus imported
-  baseline summaries.
+## Quick Smoke Test
 
-## Important Research Notes
+After placing the datasets, run a small end-to-end check:
 
-The old raw-count all-hypotheses implementation is kept as
-`current_vanilla_lazyfca`, but it is disabled by default because it is often too
-weak to serve as the main paper baseline.
+```bash
+python3 experiments/run_experiments.py \
+  --smoke \
+  --run-name smoke_reviewer_check \
+  --datasets rice \
+  --seeds 1998 \
+  --metrics query_weighted_precision \
+  --methods global_topk random_topk
+```
 
-`random_topk` is a sanity baseline for arbitrary pruning.
+The runner is incremental. Existing chunks are skipped unless `--force` is
+used.
 
-The main LazyFCA-family baselines are now imported from the user's related
-interval-pattern lazy-classification code:
+## Full Reproduction
 
-- `fcalc_deterministic`: deterministic FCALC/LazyFCA with aggregation selected
-  by cross-validation on the training split.
-- `fcalc_randomized`: randomized FCALC/LazyFCA with aggregation and sampling
-  parameters selected on the training split.
-- `ips_knn`: optional compact external interval-pattern kNN baseline, disabled
-  by default.
+The full ranked experiment can be computationally expensive. It streams one
+query at a time to avoid storing full explanations in memory.
 
-IPS-KNN may outperform the ranked LazyFCA method. That does not invalidate the
-paper, because IPS-KNN changes the classifier family and uses a single compact
-reason. This paper studies how to improve hypothesis selection inside LazyFCA
-aggregation. IPS-KNN can be used as related work, a diagnostic comparison, or
-future integration depending on results.
+```bash
+python3 experiments/run_experiments.py \
+  --run-name ranking_macro_f1_10splits
+```
 
-The imported baselines are numeric-only. The runner skips `churn` for those
-methods because that dataset has raw categorical predictors.
+Then import preserved baseline summaries and build the combined comparison:
 
-Reusable historical baseline outputs are preserved under
-`experiments/imported_baselines/`. They use split seeds `1998..2007` and store
-macro-F1, selected parameters, runtime, and compactness summaries. Because
-those files do not include predictions or confusion matrices, the paper-level
-comparison metric is macro-F1 for both binary and multi-class datasets.
+```bash
+python3 experiments/import_baseline_results.py \
+  --run-name ranking_macro_f1_10splits
+```
 
-The related paper by the same author that implements deterministic FCALC,
-randomized FCALC, and IPS-KNN has been accepted and can be cited. Local
-PDF/LaTeX copies of that manuscript and the earlier IPS-KNN position paper are
-under `paper/my_other_papers/`; use them for accurate citation and rephrase any
-technical descriptions.
+Export compact public artifacts:
 
-## Code Provenance
+```bash
+python3 experiments/export_paper_artifacts.py
+```
 
-This is a cleaned research repository derived from earlier LazyFCA work. If
-additional code is copied from another paper or repository, keep it separated
-under a clearly named folder, preserve its license/citation information, and
-document any modifications.
+Regenerate figures:
+
+```bash
+python3 experiments/generate_paper_figures.py
+```
+
+## Reported Protocol
+
+- Ten stratified 80/20 train-test splits.
+- Split seeds: `1998, ..., 2007`.
+- Primary predictive metric: macro-F1 for binary and multi-class datasets.
+- Retained-candidate grid: `k = 1, ..., 10` plus 24 geometrically spaced
+  values from 12 to the full training-set size.
+- Random top-k uses five random repeats inside each split; repeats are averaged
+  before split-level uncertainty is computed.
+- Result tables report mean and 95% confidence-interval half-width over split
+  seeds.
+
+## Baselines
+
+The imported baseline summaries include:
+
+- deterministic FCALC/LazyFCA with CV-selected aggregation;
+- randomized FCALC/LazyFCA with CV-selected aggregation and sampling
+  parameters;
+- IPS-KNN;
+- kNN, SVM, Random Forest, XGBoost, and other classical baselines from the
+  same repeated benchmark.
+
+The preserved imported results use the same split seeds and macro-F1 reporting
+protocol. The raw baseline prediction vectors were not preserved, so the common
+comparison metric is macro-F1.

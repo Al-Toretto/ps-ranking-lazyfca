@@ -1,6 +1,15 @@
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+*.nbc
+*.nbi
 .ipynb_checkpoints/
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
 
 paper/
 docs/
@@ -10,6 +19,10 @@ datasets/*
 !datasets/README.md
 
 experiments/results/
+results/*
+!results/README.md
+!results/paper/
+!results/paper/**
 *.pkl
 *.parquet
 *.log

@@ -1,0 +1,8 @@
+metric,tied_wins,top_3,mean_rank,mean_best_macro_f1,median_best_k,role
+query_similarity,7,9,2.8181818181818183,0.8686049881866169,4.0,locality representative
+query_weighted_precision,7,8,3.1818181818181817,0.8686263311229461,4.0,primary reported metric
+precision,4,4,5.454545454545454,0.8646899787984353,3.0,purity-only reference
+description_volume,1,1,11.636363636363637,0.8345800642880452,1.0,geometric-size reference
+query_weighted_log_odds_ratio,2,2,12.363636363636363,0.6140284224494318,9.0,log-odds variant
+delta_stability,2,2,13.0,0.7235993332040164,8.0,stability-family diagnostic
+log_odds_ratio,0,0,14.545454545454545,0.6069781522388349,9.0,support-sensitive reference
